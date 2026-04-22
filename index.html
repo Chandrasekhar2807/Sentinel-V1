@@ -276,6 +276,7 @@ body.light-mode .map-popup { color: #111; }
 body.light-mode .mp-k { color: #999; }
 body.light-mode .mp-v { color: #111; }
 
+id { grid-template-columns: 1fr 1fr; }
 /* ─── MOBILE RESPONSIVE ──────────────────────────────────────────── */
 @media (max-width: 900px) {
   body { flex-direction: column; }
@@ -286,7 +287,6 @@ body.light-mode .mp-v { color: #111; }
   #detail-drawer { width: 100% !important; min-width: 100% !important; top: auto; bottom: 0; height: 60vh; transform: translateY(100%); }
   #detail-drawer.open { transform: translateY(0); }
   .topbar-center { display: none; }
-  var(--sidebar-w) { --sidebar-w: 100%; }
   .stat-grid { grid-template-columns: 1fr 1fr; }
 }
 
