@@ -1,0 +1,1507 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' https: data: blob:;">
+<meta name="description" content="Sentinel — Spatial Intelligence Platform for land parcel auditing and development analysis." />
+<meta name="theme-color" content="#0a0a0a" />
+<title>Sentinel v2.0 | Land Intelligence Platform</title>
+
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Space+Mono:wght@400;700&family=DM+Sans:wght@300;400;500;700;900&display=swap" />
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
+
+<style>
+/* ─── DESIGN TOKENS ──────────────────────────────────────────────── */
+:root {
+  --amber:   #FFBF00;
+  --amber2:  #FFD54F;
+  --green:   #00E676;
+  --red:     #FF1744;
+  --blue:    #448AFF;
+  --purple:  #E040FB;
+
+  --bg:      #080808;
+  --panel:   #0e0e0e;
+  --card:    #141414;
+  --border:  #1f1f1f;
+  --border2: #2a2a2a;
+  --text:    #f0f0f0;
+  --muted:   #555;
+  --dim:     #333;
+
+  --sidebar-w: 420px;
+  --detail-w:  380px;
+}
+
+/* ─── RESET ──────────────────────────────────────────────────────── */
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+html, body { height: 100%; overflow: hidden; }
+body { font-family: 'DM Sans', sans-serif; background: var(--bg); color: var(--text); display: flex; flex-direction: column; }
+
+/* ─── TOP BAR ────────────────────────────────────────────────────── */
+#topbar {
+  height: 52px; min-height: 52px;
+  background: var(--panel);
+  border-bottom: 1px solid var(--border);
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 0 20px; z-index: 100;
+  -webkit-backdrop-filter: blur(10px); backdrop-filter: blur(10px);
+}
+.brand { font-family: 'Space Mono', monospace; font-size: 15px; font-weight: 700; color: var(--amber); letter-spacing: -0.5px; display: flex; align-items: center; gap: 10px; }
+.brand-dot { width: 8px; height: 8px; background: var(--green); border-radius: 50%; animation: pulse-dot 1.8s infinite; }
+@keyframes pulse-dot { 0%,100%{opacity:1;transform:scale(1)} 50%{opacity:0.4;transform:scale(0.7)} }
+.topbar-center { display: flex; align-items: center; gap: 8px; }
+.zone-chip { padding: 5px 14px; border-radius: 20px; border: 1px solid var(--border2); font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 1px; cursor: pointer; transition: .15s; background: transparent; color: var(--muted); }
+.zone-chip.active { background: var(--amber); color: #000; border-color: var(--amber); }
+.topbar-right { display: flex; gap: 8px; align-items: center; }
+.btn-sm { padding: 7px 14px; border-radius: 6px; border: 1px solid var(--border2); background: transparent; color: var(--text); font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: .8px; cursor: pointer; transition: .15s; font-family: 'DM Sans', sans-serif; }
+.btn-sm:hover { border-color: var(--amber); color: var(--amber); }
+.btn-sm.primary { background: var(--amber); color: #000; border-color: var(--amber); }
+.btn-sm.primary:hover { background: #fff; border-color: #fff; }
+
+/* ─── MAIN LAYOUT ────────────────────────────────────────────────── */
+#main { display: flex; flex: 1; overflow: hidden; }
+
+/* ─── LEFT SIDEBAR ───────────────────────────────────────────────── */
+#sidebar {
+  width: var(--sidebar-w); min-width: var(--sidebar-w);
+  background: var(--panel);
+  border-right: 1px solid var(--border);
+  display: flex; flex-direction: column;
+  overflow: hidden; z-index: 50;
+}
+#sidebar-scroll { flex: 1; overflow-y: auto; padding: 20px; }
+#sidebar-scroll::-webkit-scrollbar { width: 4px; }
+#sidebar-scroll::-webkit-scrollbar-track { background: transparent; }
+#sidebar-scroll::-webkit-scrollbar-thumb { background: var(--dim); border-radius: 4px; }
+
+/* ─── AUDIT PANEL ────────────────────────────────────────────────── */
+.audit-box { background: var(--card); border: 1px solid var(--border2); border-radius: 10px; padding: 18px; margin-bottom: 18px; }
+.audit-box label { font-size: 9px; font-weight: 900; text-transform: uppercase; letter-spacing: 2px; color: var(--muted); display: block; margin-bottom: 10px; }
+.survey-input-wrap { position: relative; }
+textarea#surveyInput {
+  width: 100%; background: #000; border: 1px solid var(--border2);
+  color: var(--text); padding: 12px 14px; border-radius: 8px;
+  font-size: 13px; font-family: 'Space Mono', monospace;
+  resize: none; height: 72px; outline: none; transition: .2s;
+}
+textarea#surveyInput:focus { border-color: var(--amber); }
+textarea#surveyInput.error { border-color: var(--red); }
+.input-hint { font-size: 10px; color: var(--muted); margin-top: 6px; margin-bottom: 12px; }
+.input-hint span { color: var(--amber); }
+.btn-launch {
+  width: 100%; background: var(--amber); color: #000;
+  border: none; padding: 14px; border-radius: 8px;
+  font-weight: 900; font-size: 13px; font-family: 'DM Sans', sans-serif;
+  text-transform: uppercase; letter-spacing: 1px;
+  cursor: pointer; transition: .2s; display: flex; align-items: center; justify-content: center; gap: 8px;
+}
+.btn-launch:hover:not(:disabled) { background: #fff; transform: translateY(-1px); box-shadow: 0 4px 20px rgba(255,191,0,.3); }
+.btn-launch:disabled { opacity: .5; cursor: not-allowed; transform: none; }
+.btn-launch .spinner { width: 14px; height: 14px; border: 2px solid rgba(0,0,0,.3); border-top-color: #000; border-radius: 50%; animation: spin .7s linear infinite; display: none; }
+.btn-launch.loading .spinner { display: block; }
+.btn-launch.loading .launch-text { display: none; }
+@keyframes spin { to { transform: rotate(360deg); } }
+
+/* ─── SECTION HEADERS ────────────────────────────────────────────── */
+.sh { font-size: 9px; font-weight: 900; color: var(--amber); text-transform: uppercase; letter-spacing: 2px; margin: 22px 0 12px; display: flex; align-items: center; gap: 8px; }
+.sh::after { content: ''; flex: 1; height: 1px; background: var(--border); }
+
+/* ─── STAT GRID ──────────────────────────────────────────────────── */
+.stat-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-bottom: 18px; }
+.stat-tile { background: var(--card); border: 1px solid var(--border); border-radius: 8px; padding: 14px; transition: .2s; }
+.stat-tile:hover { border-color: var(--border2); }
+.stat-tile.wide { grid-column: span 2; }
+.stat-tile.highlight { border-color: rgba(0,230,118,.2); }
+.s-label { font-size: 9px; font-weight: 700; text-transform: uppercase; letter-spacing: 1.5px; color: var(--muted); margin-bottom: 6px; }
+.s-val { font-size: 18px; font-weight: 700; color: var(--text); font-family: 'Space Mono', monospace; }
+.s-val.green { color: var(--green); }
+.s-val.amber { color: var(--amber); }
+.s-val.red { color: var(--red); }
+.s-val.big { font-size: 24px; }
+.s-sub { font-size: 10px; color: var(--muted); margin-top: 3px; }
+
+/* ─── BADGE ──────────────────────────────────────────────────────── */
+.badge { display: inline-flex; align-items: center; gap: 5px; padding: 4px 10px; border-radius: 20px; font-size: 10px; font-weight: 800; text-transform: uppercase; letter-spacing: .5px; }
+.badge::before { content:''; width:6px; height:6px; border-radius:50%; }
+.badge-safe { background: rgba(0,230,118,.08); color: var(--green); border: 1px solid rgba(0,230,118,.25); }
+.badge-safe::before { background: var(--green); }
+.badge-risk { background: rgba(255,23,68,.08); color: var(--red); border: 1px solid rgba(255,23,68,.25); }
+.badge-risk::before { background: var(--red); }
+.badge-warn { background: rgba(255,191,0,.08); color: var(--amber); border: 1px solid rgba(255,191,0,.25); }
+.badge-warn::before { background: var(--amber); }
+.badge-idle { background: rgba(255,255,255,.05); color: var(--muted); border: 1px solid var(--border); }
+.badge-idle::before { background: var(--muted); }
+
+/* ─── RESULTS TABLE ──────────────────────────────────────────────── */
+.results-table { width: 100%; border-collapse: collapse; font-size: 12px; }
+.results-table thead tr { border-bottom: 1px solid var(--border2); }
+.results-table th { font-size: 9px; font-weight: 900; text-transform: uppercase; letter-spacing: 1.5px; color: var(--muted); padding: 8px 10px; text-align: left; }
+.results-table td { padding: 10px 10px; border-bottom: 1px solid var(--border); vertical-align: middle; }
+.results-table tbody tr { cursor: pointer; transition: .15s; }
+.results-table tbody tr:hover { background: rgba(255,191,0,.04); }
+.results-table tbody tr.active-row { background: rgba(255,191,0,.07); }
+.sy-badge { font-family: 'Space Mono', monospace; font-size: 11px; font-weight: 700; background: var(--border); padding: 3px 8px; border-radius: 4px; }
+.status-dot { width: 7px; height: 7px; border-radius: 50%; display: inline-block; }
+.dot-clear { background: var(--green); }
+.dot-encumbered { background: var(--red); }
+.dot-partial { background: var(--amber); }
+
+/* ─── LOG ─────────────────────────────────────────────────────────── */
+#log-panel {
+  border-top: 1px solid var(--border); padding: 12px 16px;
+  background: #000; height: 110px; overflow-y: auto; flex-shrink: 0;
+}
+#log-panel::-webkit-scrollbar { width: 3px; }
+#log-panel::-webkit-scrollbar-thumb { background: var(--dim); }
+.log-line { font-family: 'Space Mono', monospace; font-size: 10px; color: #3a3a3a; padding: 1px 0; transition: .3s; }
+.log-line.new { color: #00cc55; }
+.log-line.warn { color: var(--amber); }
+.log-line.err { color: var(--red); }
+.log-line.done { color: var(--amber); font-weight: 700; }
+
+/* ─── MAP ─────────────────────────────────────────────────────────── */
+#map-wrap { flex: 1; position: relative; overflow: hidden; }
+#map { width: 100%; height: 100%; }
+
+/* ─── MAP OVERLAY CONTROLS ───────────────────────────────────────── */
+#map-controls {
+  position: absolute; top: 14px; right: 14px; z-index: 500;
+  display: flex; flex-direction: column; gap: 6px;
+}
+.map-btn { width: 36px; height: 36px; background: rgba(14,14,14,.92); border: 1px solid var(--border2); border-radius: 6px; display: flex; align-items: center; justify-content: center; cursor: pointer; transition: .15s; font-size: 14px; -webkit-backdrop-filter: blur(8px); backdrop-filter: blur(8px); }
+.map-btn:hover { border-color: var(--amber); }
+.map-btn.active-layer { border-color: var(--amber); background: rgba(255,191,0,.1); }
+
+/* ─── DETAIL DRAWER ──────────────────────────────────────────────── */
+#detail-drawer {
+  width: var(--detail-w); min-width: var(--detail-w);
+  background: var(--panel); border-left: 1px solid var(--border);
+  display: flex; flex-direction: column; overflow: hidden;
+  transform: translateX(var(--detail-w)); transition: transform .35s cubic-bezier(.4,0,.2,1);
+  position: absolute; right: 0; top: 0; height: 100%; z-index: 200;
+}
+#detail-drawer.open { transform: translateX(0); }
+#detail-header { padding: 18px 20px; border-bottom: 1px solid var(--border); display: flex; justify-content: space-between; align-items: center; }
+#detail-scroll { flex: 1; overflow-y: auto; padding: 20px; }
+#detail-scroll::-webkit-scrollbar { width: 3px; }
+#detail-scroll::-webkit-scrollbar-thumb { background: var(--dim); }
+.detail-close { background: none; border: 1px solid var(--border); width: 28px; height: 28px; border-radius: 6px; cursor: pointer; color: var(--muted); font-size: 14px; display: flex; align-items: center; justify-content: center; transition: .15s; }
+.detail-close:hover { border-color: var(--red); color: var(--red); }
+.detail-sy { font-family: 'Space Mono', monospace; font-size: 22px; font-weight: 700; color: var(--amber); }
+.detail-section { margin-bottom: 22px; }
+.detail-label { font-size: 9px; font-weight: 900; text-transform: uppercase; letter-spacing: 2px; color: var(--muted); margin-bottom: 10px; }
+.detail-row { display: flex; justify-content: space-between; align-items: center; padding: 9px 0; border-bottom: 1px solid var(--border); }
+.detail-row:last-child { border-bottom: none; }
+.detail-key { font-size: 12px; color: var(--muted); }
+.detail-value { font-size: 12px; font-weight: 700; color: var(--text); font-family: 'Space Mono', monospace; }
+.detail-value.green { color: var(--green); }
+.detail-value.amber { color: var(--amber); }
+.detail-value.red { color: var(--red); }
+.sensitivity-bar { margin-bottom: 12px; }
+.sens-label { display: flex; justify-content: space-between; font-size: 10px; margin-bottom: 4px; }
+.sens-label span:first-child { color: var(--muted); }
+.sens-label span:last-child { font-family: 'Space Mono', monospace; font-weight: 700; }
+.sens-track { height: 4px; background: var(--border2); border-radius: 2px; overflow: hidden; }
+.sens-fill { height: 100%; border-radius: 2px; transition: width .6s ease; }
+
+/* ─── PROGRESS BAR ───────────────────────────────────────────────── */
+#progress-wrap { padding: 0 20px 14px; display: none; }
+#progress-wrap.active { display: block; }
+.prog-label { font-size: 9px; font-weight: 700; text-transform: uppercase; letter-spacing: 1.5px; color: var(--muted); margin-bottom: 6px; }
+.prog-track { height: 3px; background: var(--border2); border-radius: 2px; overflow: hidden; }
+.prog-fill { height: 100%; background: var(--amber); border-radius: 2px; width: 0%; transition: width .4s ease; }
+
+/* ─── PORTFOLIO SUMMARY ──────────────────────────────────────────── */
+.portfolio-card {
+  background: linear-gradient(135deg, rgba(255,191,0,.08) 0%, rgba(255,191,0,.02) 100%);
+  border: 1px solid rgba(255,191,0,.2); border-radius: 10px; padding: 18px; margin-bottom: 18px;
+}
+.portfolio-gdv { font-family: 'Space Mono', monospace; font-size: 28px; font-weight: 700; color: var(--amber); line-height: 1; }
+.portfolio-sub { font-size: 10px; color: var(--muted); margin-top: 4px; text-transform: uppercase; letter-spacing: 1px; }
+.portfolio-meta { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 10px; margin-top: 14px; }
+.pm-item { text-align: center; }
+.pm-val { font-family: 'Space Mono', monospace; font-size: 14px; font-weight: 700; }
+.pm-lbl { font-size: 9px; color: var(--muted); text-transform: uppercase; letter-spacing: 1px; margin-top: 2px; }
+
+/* ─── MAP TOOLTIP POPUP ──────────────────────────────────────────── */
+.leaflet-popup-content-wrapper { background: #0e0e0e !important; border: 1px solid #2a2a2a !important; border-radius: 8px !important; box-shadow: 0 8px 30px rgba(0,0,0,.6) !important; padding: 0 !important; }
+.leaflet-popup-content { margin: 0 !important; padding: 0 !important; }
+.leaflet-popup-tip-container { display: none; }
+.map-popup { padding: 14px 16px; min-width: 200px; }
+.mp-sy { font-family: 'Space Mono', monospace; font-size: 13px; font-weight: 700; color: var(--amber); margin-bottom: 8px; }
+.mp-row { display: flex; justify-content: space-between; font-size: 11px; padding: 3px 0; }
+.mp-k { color: #555; }
+.mp-v { color: #eee; font-family: 'Space Mono', monospace; font-weight: 700; }
+
+/* ─── TOAST ──────────────────────────────────────────────────────── */
+#toast-container { position: fixed; bottom: 24px; left: 50%; transform: translateX(-50%); z-index: 9999; display: flex; flex-direction: column; gap: 8px; align-items: center; pointer-events: none; }
+.toast { padding: 10px 18px; border-radius: 8px; font-size: 12px; font-weight: 700; text-transform: uppercase; letter-spacing: .5px; animation: toastIn .3s ease; pointer-events: auto; }
+.toast-success { background: rgba(0,230,118,.15); color: var(--green); border: 1px solid rgba(0,230,118,.3); }
+.toast-error { background: rgba(255,23,68,.15); color: var(--red); border: 1px solid rgba(255,23,68,.3); }
+.toast-info { background: rgba(255,191,0,.12); color: var(--amber); border: 1px solid rgba(255,191,0,.3); }
+@keyframes toastIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
+
+/* ─── EMPTY STATE ────────────────────────────────────────────────── */
+.empty-state { text-align: center; padding: 40px 20px; color: var(--muted); }
+.empty-icon { font-size: 32px; margin-bottom: 10px; opacity: .4; }
+.empty-text { font-size: 11px; text-transform: uppercase; letter-spacing: 1.5px; }
+
+/* ─── LEAFLET OVERRIDES ──────────────────────────────────────────── */
+.leaflet-control-zoom { border: 1px solid var(--border2) !important; border-radius: 8px !important; overflow: hidden; }
+.leaflet-control-zoom a { background: rgba(14,14,14,.9) !important; color: var(--text) !important; border-color: var(--border) !important; }
+.leaflet-control-zoom a:hover { background: var(--amber) !important; color: #000 !important; }
+.leaflet-control-layers { background: rgba(14,14,14,.92) !important; border: 1px solid var(--border2) !important; border-radius: 8px !important; -webkit-backdrop-filter: blur(8px); backdrop-filter: blur(8px); }
+.leaflet-control-layers-base label, .leaflet-control-layers label span { color: var(--text) !important; font-size: 11px !important; font-family: 'DM Sans', sans-serif !important; }
+/* Historic layer gets a blue active tint */
+#lyr-historic.active-layer { border-color: #448AFF; background: rgba(68,138,255,.12); }
+
+/* ─── SCROLLBAR GLOBAL ───────────────────────────────────────────── */
+::-webkit-scrollbar { width: 5px; height: 5px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: var(--dim); border-radius: 4px; }
+
+/* ─── LIGHT THEME ────────────────────────────────────────────────── */
+body.light-mode {
+  --bg: #f4f4f4; --panel: #ffffff; --card: #f0f0f0;
+  --border: #ddd; --border2: #ccc; --text: #111; --muted: #777; --dim: #bbb;
+}
+body.light-mode #map-wrap { filter: invert(1) hue-rotate(180deg); }
+body.light-mode .leaflet-popup-content-wrapper { background: #fff !important; border-color: #ddd !important; }
+body.light-mode .map-popup { color: #111; }
+body.light-mode .mp-k { color: #999; }
+body.light-mode .mp-v { color: #111; }
+
+/* ─── MOBILE RESPONSIVE ──────────────────────────────────────────── */
+@media (max-width: 900px) {
+  body { flex-direction: column; }
+  #main { flex-direction: column; overflow: auto; }
+  #sidebar { width: 100% !important; min-width: 100% !important; height: auto; border-right: none; border-bottom: 1px solid var(--border); }
+  #sidebar-scroll { max-height: 55vh; }
+  #map-wrap { height: 45vh; min-height: 300px; }
+  #detail-drawer { width: 100% !important; min-width: 100% !important; top: auto; bottom: 0; height: 60vh; transform: translateY(100%); }
+  #detail-drawer.open { transform: translateY(0); }
+  .topbar-center { display: none; }
+  var(--sidebar-w) { --sidebar-w: 100%; }
+  .stat-grid { grid-template-columns: 1fr 1fr; }
+}
+
+/* ─── PRINT STYLESHEET ───────────────────────────────────────────── */
+@media print {
+  #sidebar, #map-wrap, #topbar, #toast-container { display: none !important; }
+  #pdf-export-root { display: block !important; }
+}
+
+/* ─── KEYBOARD SHORTCUT HINT ─────────────────────────────────────── */
+.kbd { display: inline-flex; align-items: center; justify-content: center; padding: 1px 5px; border: 1px solid var(--border2); border-radius: 3px; font-family: 'Space Mono', monospace; font-size: 9px; color: var(--muted); }
+
+/* ─── COMPARE MODE ───────────────────────────────────────────────── */
+.compare-row { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+.compare-tile { background: var(--card); border: 1px solid var(--border); border-radius: 8px; padding: 12px; }
+.compare-tile.a-side { border-top: 2px solid var(--amber); }
+.compare-tile.b-side { border-top: 2px solid var(--blue); }
+.compare-winner { font-size: 9px; font-weight: 900; color: var(--green); text-transform: uppercase; letter-spacing: 1px; }
+</style>
+</head>
+<body>
+
+<!-- ╔════════════════════════════════════════════════════════════════╗ -->
+<!-- ║                       TOP BAR                                  ║ -->
+<!-- ╚════════════════════════════════════════════════════════════════╝ -->
+<div id="topbar">
+  <div class="brand">
+    <div class="brand-dot"></div>
+    SENTINEL <span style="font-weight:300;color:#555;margin-left:4px">v2.0 <span style="color:var(--green);font-size:10px">PROD</span></span>
+  </div>
+  <div class="topbar-center">
+    <button type="button" class="zone-chip active" onclick="setZone('kollur',this)">Kollur</button>
+    <button type="button" class="zone-chip" onclick="setZone('narsingi',this)">Narsingi</button>
+    <button type="button" class="zone-chip" onclick="setZone('mokila',this)">Mokila</button>
+    <button type="button" class="zone-chip" onclick="setZone('patancheru',this)">Patancheru</button>
+  </div>
+  <div class="topbar-right">
+    <span id="db-status" style="font-size:9px;font-family:'Space Mono',monospace;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:1px;padding:4px 10px;border:1px solid var(--border);border-radius:20px;">⏳ LOADING DB</span>
+    <button type="button" class="btn-sm" onclick="toggleTheme()" id="themeBtn" title="Toggle light/dark (T)">🌙</button>
+    <button type="button" class="btn-sm" onclick="exportCSV()" title="Export CSV (Ctrl+E)">📊 CSV</button>
+    <button type="button" class="btn-sm" onclick="shareLink()" title="Copy share link (Ctrl+Shift+S)">🔗 Share</button>
+    <button type="button" class="btn-sm" onclick="clearAll()" title="Reset (Ctrl+R)">↺ Reset</button>
+    <button type="button" class="btn-sm" onclick="exportReport()" title="Export PDF (Ctrl+P)">⬇ PDF</button>
+    <button type="button" class="btn-sm primary" onclick="toggleDrawer()" title="Detail view (D)">Detail ▸</button>
+  </div>
+</div>
+
+<!-- ╔════════════════════════════════════════════════════════════════╗ -->
+<!-- ║                       MAIN LAYOUT                              ║ -->
+<!-- ╚════════════════════════════════════════════════════════════════╝ -->
+<div id="main">
+
+  <!-- ── LEFT SIDEBAR ─────────────────────────────────────────────── -->
+  <div id="sidebar">
+    <div id="sidebar-scroll">
+
+      <!-- Audit Input -->
+      <div class="audit-box">
+        <label>Target Survey Queue</label>
+        <div class="survey-input-wrap">
+          <textarea id="surveyInput" placeholder="131, 135, 140, 201..."></textarea>
+        </div>
+        <div class="input-hint">Separate with commas · <span id="zoneLabel">Zone: Kollur</span></div>
+        <div id="progress-wrap">
+          <div class="prog-label">Scanning <span id="prog-count">0/0</span></div>
+          <div class="prog-track"><div class="prog-fill" id="progFill"></div></div>
+        </div>
+        <button type="button" class="btn-launch" id="launchBtn" onclick="runAudit()">
+          <span class="launch-text">🚀 Launch Master Audit</span>
+          <div class="spinner"></div>
+        </button>
+      </div>
+
+      <!-- Portfolio Summary (shown after audit) -->
+      <div id="portfolioCard" style="display:none">
+        <div class="sh">Portfolio Summary</div>
+        <div class="portfolio-card">
+          <div class="portfolio-gdv" id="portGDV">₹0 Cr</div>
+          <div class="portfolio-sub">Total Gross Development Value</div>
+          <div class="portfolio-meta">
+            <div class="pm-item">
+              <div class="pm-val amber" id="portAcres">0</div>
+              <div class="pm-lbl">Net Acres</div>
+            </div>
+            <div class="pm-item">
+              <div class="pm-val green" id="portClear">0</div>
+              <div class="pm-lbl">Clear Title</div>
+            </div>
+            <div class="pm-item">
+              <div class="pm-val" id="portMargin">0%</div>
+              <div class="pm-lbl">Avg Margin</div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Stats tiles -->
+      <div class="sh">Sustainability & Policy</div>
+      <div class="stat-grid">
+        <div class="stat-tile">
+          <div class="s-label">Recharge Potential</div>
+          <div class="s-val amber" id="resHydro">—</div>
+          <div class="s-sub">Groundwater zone</div>
+        </div>
+        <div class="stat-tile">
+          <div class="s-label">Community Jobs</div>
+          <div class="s-val green" id="resJobs">—</div>
+          <div class="s-sub">Construction phase</div>
+        </div>
+        <div class="stat-tile wide">
+          <div class="s-label">Environmental Status</div>
+          <div id="resWarning" class="badge badge-idle" style="margin-top:4px">AWAITING DATA</div>
+        </div>
+        <div class="stat-tile">
+          <div class="s-label">Env. Sustainability Score</div>
+          <div class="s-val" id="resNSS" style="font-size:22px">—</div>
+          <div class="s-sub">Composite 0–100 index</div>
+        </div>
+        <div class="stat-tile wide">
+          <div class="s-label">Daily Water Demand</div>
+          <div class="s-val" id="resWater">—</div>
+          <div class="s-sub">Liters/day at full occupancy</div>
+        </div>
+      </div>
+
+      <div class="sh">Financial & Structural DNA</div>
+      <div class="stat-grid">
+        <div class="stat-tile">
+          <div class="s-label">Total GFA</div>
+          <div class="s-val" id="resGFA">—</div>
+          <div class="s-sub">Lakh sq.ft</div>
+        </div>
+        <div class="stat-tile">
+          <div class="s-label">Max Floors</div>
+          <div class="s-val" id="resHeight">—</div>
+          <div class="s-sub">Structural estimate</div>
+        </div>
+        <div class="stat-tile">
+          <div class="s-label">Units (2BHK est.)</div>
+          <div class="s-val amber" id="resUnits">—</div>
+        </div>
+        <div class="stat-tile">
+          <div class="s-label">FSI Zone</div>
+          <div class="s-val" id="resFSI">—</div>
+        </div>
+        <div class="stat-tile wide highlight">
+          <div class="s-label">Gross Development Value</div>
+          <div class="s-val green big" id="resGDV">₹0 Cr</div>
+          <div class="s-sub" id="resMarginLine"></div>
+        </div>
+      </div>
+
+      <!-- Results Table -->
+      <div class="sh">Audit Results <span id="resultCount" style="color:var(--muted);font-weight:400;font-size:9px"></span></div>
+      <div style="display:flex;gap:8px;align-items:center;margin-bottom:10px">
+        <button type="button" class="btn-sm" onclick="toggleCompare()" id="compareBtn" title="Select 2 parcels then compare">⇄ Compare</button>
+        <button type="button" class="btn-sm" onclick="copyGDV()" title="Copy portfolio GDV to clipboard (Ctrl+C)">⎘ Copy GDV</button>
+        <button type="button" class="btn-sm" onclick="undoLastParcel()" title="Undo last audit entry">↩ Undo</button>
+      </div>
+      <div id="comparePanel" style="display:none;margin-bottom:14px"></div>
+      <div id="resultsTableWrap">
+        <div class="empty-state"><div class="empty-icon">📋</div><div class="empty-text">No Surveys Audited</div></div>
+      </div>
+
+    </div>
+
+    <!-- Log Console -->
+    <div id="log-panel">
+      <div class="log-line">[ SENTINEL ENGINE v2.0 READY ]</div>
+    </div>
+  </div>
+
+  <!-- ── MAP AREA ──────────────────────────────────────────────────── -->
+  <div id="map-wrap">
+    <div id="map"></div>
+
+    <div id="map-controls">
+      <div class="map-btn" title="Satellite" onclick="switchLayer('sat')" id="lyr-sat">🛰</div>
+      <div class="map-btn active-layer" title="Dark" onclick="switchLayer('dark')" id="lyr-dark">🌑</div>
+      <div class="map-btn" title="Terrain" onclick="switchLayer('terrain')" id="lyr-terrain">🗺</div>
+      <div class="map-btn" title="Historic ~2016 (Time Travel)" onclick="switchLayer('historic')" id="lyr-historic">🕰</div>
+      <div class="map-btn" title="Zoom In" onclick="map.zoomIn()">＋</div>
+      <div class="map-btn" title="Zoom Out" onclick="map.zoomOut()">－</div>
+      <div class="map-btn" title="Reset View" onclick="resetView()">⌖</div>
+      <div class="map-btn" title="Locate me" onclick="locateMe()" id="locateBtn">📍</div>
+      <div class="map-btn" title="Toggle GeoJSON polygons" onclick="toggleGeoJSON()" id="geoBtn">⬡</div>
+    </div>
+
+    <!-- Detail Drawer (slides in from right) -->
+    <div id="detail-drawer">
+      <div id="detail-header">
+        <div>
+          <div style="font-size:9px;color:var(--muted);text-transform:uppercase;letter-spacing:2px;margin-bottom:4px">Survey Detail</div>
+          <div class="detail-sy" id="detailSY">—</div>
+        </div>
+        <button type="button" class="detail-close" onclick="closeDrawer()">✕</button>
+      </div>
+      <div id="detail-scroll">
+
+        <div class="detail-section">
+          <div class="detail-label">Land Profile</div>
+          <div class="detail-row"><span class="detail-key">Zone</span><span class="detail-value amber" id="d-zone">—</span></div>
+          <div class="detail-row"><span class="detail-key">Total Acres</span><span class="detail-value" id="d-acres">—</span></div>
+          <div class="detail-row"><span class="detail-key">Net Usable Acres</span><span class="detail-value" id="d-usable">—</span></div>
+          <div class="detail-row"><span class="detail-key">FSI</span><span class="detail-value" id="d-fsi">—</span></div>
+          <div class="detail-row"><span class="detail-key">Title Status</span><span class="detail-value" id="d-status">—</span></div>
+          <div class="detail-row"><span class="detail-key">Owner</span><span class="detail-value" id="d-owner">—</span></div>
+          <div class="detail-row"><span class="detail-key">Patta No.</span><span class="detail-value" id="d-patta">—</span></div>
+        </div>
+
+        <div class="detail-section">
+          <div class="detail-label">Topography & Environment</div>
+          <div class="detail-row"><span class="detail-key">Elevation (m)</span><span class="detail-value" id="d-elev">—</span></div>
+          <div class="detail-row"><span class="detail-key">Slope (%)</span><span class="detail-value" id="d-slope">—</span></div>
+          <div class="detail-row"><span class="detail-key">FTL Buffer Risk</span><span class="detail-value" id="d-ftl">—</span></div>
+          <div class="detail-row"><span class="detail-key">Hydro Zone</span><span class="detail-value" id="d-hydro">—</span></div>
+          <div class="detail-row"><span class="detail-key">Env. Sustainability</span><span class="detail-value amber" id="d-nss">—</span></div>
+          <div class="detail-row"><span class="detail-key">Critical Recharge Zone</span><span class="detail-value" id="d-recharge">—</span></div>
+        </div>
+
+        <div class="detail-section">
+          <div class="detail-label">Financial Model</div>
+          <div class="detail-row"><span class="detail-key">GFA (Lakh sq.ft)</span><span class="detail-value" id="d-gfa">—</span></div>
+          <div class="detail-row"><span class="detail-key">Estimated Units</span><span class="detail-value" id="d-units">—</span></div>
+          <div class="detail-row"><span class="detail-key">Market Rate (₹/sft)</span><span class="detail-value" id="d-rate">—</span></div>
+          <div class="detail-row"><span class="detail-key">GDV</span><span class="detail-value green" id="d-gdv">—</span></div>
+          <div class="detail-row"><span class="detail-key">Construction Cost</span><span class="detail-value red" id="d-cost">—</span></div>
+          <div class="detail-row"><span class="detail-key">Net Margin</span><span class="detail-value amber" id="d-margin">—</span></div>
+        </div>
+
+        <div class="detail-section">
+          <div class="detail-label">Rate Sensitivity (GDV Scenarios)</div>
+          <div id="sensitivity-bars"></div>
+        </div>
+
+        <div class="detail-section">
+          <div class="detail-label">Community Impact</div>
+          <div class="detail-row"><span class="detail-key">Construction Jobs</span><span class="detail-value green" id="d-jobs">—</span></div>
+          <div class="detail-row"><span class="detail-key">Water Demand (L/day)</span><span class="detail-value" id="d-water">—</span></div>
+          <div class="detail-row"><span class="detail-key">Road Width Req.</span><span class="detail-value" id="d-road">—</span></div>
+        </div>
+
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Toast Container -->
+<div id="toast-container"></div>
+
+<!-- ═══════════════════════════════════════════════════════════════════ -->
+<!-- JAVASCRIPT ENGINE                                                   -->
+<!-- ═══════════════════════════════════════════════════════════════════ -->
+<script>
+'use strict';
+
+/* ──────────────────────────────────────────────────────────
+   1. MOCK DATABASE  (replace with scraped_data.json fetch)
+   ────────────────────────────────────────────────────────── */
+/* ── LIVE DATABASE — loaded from scraped_data.json ─────────────────
+   Structure expected:
+   { "kollur": { "131": { lat, lng, acres, slope, elev, status,
+                           owner, patta, roadWidth }, ... }, ... }
+   ─────────────────────────────────────────────────────────────────── */
+let MOCK_DB = {};
+let DB_READY = false;
+
+async function syncDatabase() {
+  const statusEl = document.getElementById('db-status');
+  try {
+    statusEl.textContent = '⏳ SYNCING DB...';
+    statusEl.style.color = 'var(--amber)';
+    const response = await fetch('scraped_data.json');
+    if (!response.ok) throw new Error(`HTTP ${response.status}`);
+    MOCK_DB = await response.json();
+    DB_READY = true;
+    const zoneCount  = Object.keys(MOCK_DB).length;
+    const parcelCount = Object.values(MOCK_DB).reduce((s,z) => s + Object.keys(z).length, 0);
+    statusEl.textContent = `✓ LIVE · ${parcelCount} parcels`;
+    statusEl.style.color = 'var(--green)';
+    addLog(`✓ LIVE DATABASE SYNCED — ${parcelCount} parcels across ${zoneCount} zones`, 'new');
+  } catch (e) {
+    /* Graceful offline fallback — keeps app usable without the JSON file */
+    MOCK_DB = {};
+    DB_READY = false;
+    statusEl.textContent = '⚠ OFFLINE MODE';
+    statusEl.style.color = 'var(--red)';
+    addLog('⚠ SYNC ERROR: scraped_data.json not found — check file path', 'err');
+    addLog('  Place index.html and scraped_data.json in the same folder', 'err');
+  }
+}
+syncDatabase();
+
+/* Zone configs: FSI, rate per sft, construction cost, zone center */
+const ZONE_CONFIG = {
+  kollur:     { fsi: 3.0,  rate: 7200,  conCost: 3200, center: [17.4486, 78.2307], zoom: 14, label: 'Kollur' },
+  narsingi:   { fsi: 2.75, rate: 8500,  conCost: 3400, center: [17.3970, 78.3155], zoom: 14, label: 'Narsingi' },
+  mokila:     { fsi: 2.5,  rate: 5800,  conCost: 2900, center: [17.5025, 78.1875], zoom: 14, label: 'Mokila' },
+  patancheru: { fsi: 3.5,  rate: 4500,  conCost: 2600, center: [17.5295, 78.2705], zoom: 13, label: 'Patancheru' },
+};
+
+/* ──────────────────────────────────────────────────────────
+   2. MAP ENGINE
+   ────────────────────────────────────────────────────────── */
+const layers = {
+  dark:    L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', { attribution: '© CartoDB' }),
+  sat:     L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', { attribution: '© Esri' }),
+  terrain: L.tileLayer('https://{s}.tile.opentopomap.org/{z}/{x}/{y}.png', { attribution: '© OpenTopoMap' }),
+  historic: L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', {
+    opacity: 0.65, attribution: 'Esri Wayback ~2016'
+  }),
+};
+
+const map = L.map('map', { center: [17.4486, 78.2307], zoom: 14, layers: [layers.dark], zoomControl: true });
+let activeLayer = 'dark';
+
+const markerGroup = L.layerGroup().addTo(map);
+let auditResults = [];
+let currentZone = 'kollur';
+let activeRowSY = null;
+
+function switchLayer(name) {
+  map.removeLayer(layers[activeLayer]);
+  map.addLayer(layers[name]);
+  activeLayer = name;
+  document.querySelectorAll('[id^="lyr-"]').forEach(el => el.classList.remove('active-layer'));
+  document.getElementById('lyr-' + name).classList.add('active-layer');
+}
+
+function resetView() {
+  const cfg = ZONE_CONFIG[currentZone];
+  map.flyTo(cfg.center, cfg.zoom, { duration: 1.2 });
+}
+
+function setZone(zone, el) {
+  currentZone = zone;
+  document.querySelectorAll('.zone-chip').forEach(c => c.classList.remove('active'));
+  el.classList.add('active');
+  document.getElementById('zoneLabel').textContent = 'Zone: ' + ZONE_CONFIG[zone].label;
+  resetView();
+  toast('Zone switched to ' + ZONE_CONFIG[zone].label, 'info');
+}
+
+/* ──────────────────────────────────────────────────────────
+   3. MATH ENGINE
+   ────────────────────────────────────────────────────────── */
+function calcParcel(parcel, zone) {
+  const cfg = ZONE_CONFIG[zone];
+
+  /* ── Core Math (4dp computational standard) ─────────────────── */
+  const usable  = parseFloat((parcel.acres * 0.82).toFixed(4));
+  const gfa     = parseFloat((usable * 43560 * cfg.fsi).toFixed(4));
+  const units   = Math.floor(gfa / 2150);
+  const gdv     = parseFloat(((gfa * cfg.rate) / 10000000).toFixed(4));
+  const conCost = parseFloat(((gfa * cfg.conCost) / 10000000).toFixed(4));
+  const margin  = parseFloat(((gdv - conCost) / gdv * 100).toFixed(4));
+  const floors  = Math.ceil(gfa / (usable * 43560 * 0.28));
+  const jobs    = Math.round((gfa / 1000) * 1.5);
+
+  /* ── Water Demand Formula ───────────────────────────────────
+     Water Demand = Units × 5 residents × 135 L/person/day
+     (Bureau of Indian Standards IS:1172 domestic consumption norm)
+     ─────────────────────────────────────────────────────────────── */
+  const water = parseFloat((units * 5 * 135).toFixed(4));  // litres/day
+  const waterKL = parseFloat((water / 1000).toFixed(4));    // KL/day
+
+  /* ── Env. Sustainability Score (0–100) ──────────────────────────
+     Weighted composite of 5 environmental indicators:
+       1. Slope factor      (25 pts) — flatter = better recharge
+       2. Elevation factor  (25 pts) — higher = safer from FTL zone
+       3. Recharge zone     (20 pts) — slope < 3% qualifies
+       4. Title cleanliness (15 pts) — Clear title = lower dev risk
+       5. Water stress      (15 pts) — demand vs. sustainable yield
+     ─────────────────────────────────────────────────────────────── */
+  const slopeScore  = parcel.slope < 1 ? 25 : parcel.slope < 2 ? 22 : parcel.slope < 3 ? 18 : parcel.slope < 4 ? 10 : 4;
+  const elevScore   = parcel.elev > 570 ? 25 : parcel.elev > 555 ? 20 : parcel.elev > 548 ? 14 : parcel.elev > 545 ? 6 : 0;
+  const rechargeScore = (parcel.slope < 3) ? 20 : (parcel.slope < 4) ? 12 : 5;
+  const titleScore  = parcel.status === 'Clear' ? 15 : parcel.status === 'Partial' ? 8 : 2;
+  const waterStress = waterKL < 200 ? 15 : waterKL < 400 ? 10 : waterKL < 700 ? 6 : 2;
+  const nssScore    = slopeScore + elevScore + rechargeScore + titleScore + waterStress;
+
+  /* Recharge zone classification (CGWB groundwater standard) */
+  const isRechargeZone = parcel.slope < 3;
+  const rechargeGrade  = parcel.slope < 1 ? 'A+ Critical Recharge'
+                       : parcel.slope < 2 ? 'A  High Recharge'
+                       : parcel.slope < 3 ? 'B  Moderate Recharge'
+                       : parcel.slope < 4 ? 'C  Low Recharge'
+                       :                    'D  Runoff Dominant';
+
+  /* ── FTL Buffer Status ──────────────────────────────────────── */
+  const ftlStatus = parcel.elev < 545 ? 'CRITICAL'
+                  : parcel.elev < 548 ? 'WARNING'
+                  : 'SAFE';
+
+  /* ── Sensitivity Scenarios ──────────────────────────────────── */
+  const scenarios = [
+    { label: 'Bear -20%', rate: cfg.rate * 0.80 },
+    { label: 'Base',      rate: cfg.rate         },
+    { label: 'Bull +15%', rate: cfg.rate * 1.15  },
+    { label: 'Bull +30%', rate: cfg.rate * 1.30  },
+  ];
+  const sensitivity = scenarios.map(s => ({
+    label: s.label,
+    gdv:   parseFloat(((gfa * s.rate) / 10000000).toFixed(4)),
+    margin: parseFloat((((gfa * s.rate / 10000000) - conCost) / (gfa * s.rate / 10000000) * 100).toFixed(4))
+  }));
+
+  return {
+    usable, gfa, units, gdv, conCost, margin, floors, jobs,
+    water, waterKL,
+    nssScore, rechargeGrade, isRechargeZone, ftlStatus,
+    sensitivity, fsi: cfg.fsi, rate: cfg.rate
+  };
+}
+
+/* ──────────────────────────────────────────────────────────
+   4. AUDIT ENGINE
+   ────────────────────────────────────────────────────────── */
+async function runAudit() {
+  const raw = document.getElementById('surveyInput').value;
+  const input = document.getElementById('surveyInput');
+
+  // Validate input
+  const list = raw.split(',').map(s => s.trim()).filter(s => s !== '');
+  if (!list.length) {
+    input.classList.add('error');
+    toast('Enter at least one survey number', 'error');
+    setTimeout(() => input.classList.remove('error'), 1500);
+    return;
+  }
+
+  // Validate each entry
+  const valid = list.filter(s => /^\d+$/.test(s));
+  const invalid = list.filter(s => !/^\d+$/.test(s));
+  if (invalid.length) {
+    toast(`Invalid entries skipped: ${invalid.join(', ')}`, 'error');
+  }
+  if (!valid.length) return;
+
+  const db = MOCK_DB[currentZone] || {};
+  const found = valid.filter(sy => db[sy]);
+  const missing = valid.filter(sy => !db[sy]);
+
+  if (!found.length) {
+    toast('No parcels found for ' + valid.join(', ') + ' in ' + ZONE_CONFIG[currentZone].label, 'error');
+    return;
+  }
+  if (missing.length) {
+    toast(`Not in DB: Sy ${missing.join(', ')} — skipped`, 'info');
+  }
+
+  // Start scan
+  setLoading(true);
+  auditResults = [];
+  markerGroup.clearLayers();
+
+  const progWrap = document.getElementById('progress-wrap');
+  progWrap.classList.add('active');
+
+  let gGDV = 0, gAcres = 0, gClear = 0, gMargin = 0;
+
+  for (let i = 0; i < found.length; i++) {
+    const sy = found[i];
+    const parcel = db[sy];
+    const calc = calcParcel(parcel, currentZone);
+
+    // Progress
+    const pct = Math.round(((i + 1) / found.length) * 100);
+    document.getElementById('progFill').style.width = pct + '%';
+    document.getElementById('prog-count').textContent = `${i+1}/${found.length}`;
+
+    // Update stat tiles
+    updateTiles(parcel, calc, sy);
+
+    // Accumulate portfolio
+    gGDV += calc.gdv; gAcres += calc.usable;
+    if (parcel.status === 'Clear') gClear++;
+    gMargin += calc.margin;
+
+    // Store result
+    auditResults.push({ sy, parcel, calc, zone: currentZone });
+
+    // Map marker
+    addMapMarker(sy, parcel, calc);
+
+    // Fly to
+    map.flyTo([parcel.lat, parcel.lng], 16, { duration: 0.8 });
+
+    // Log
+    addLog(`> Sy ${sy} | ${ZONE_CONFIG[currentZone].label} | GDV ₹${calc.gdv.toFixed(4)}Cr | Margin ${calc.margin.toFixed(4)}% | ${parcel.status}`, 'new');
+
+    await sleep(900);
+  }
+
+  // Portfolio summary
+  updatePortfolio(gGDV, gAcres, gClear, gMargin / found.length);
+
+  // Results table
+  renderTable();
+
+  // Zoom out to see all
+  if (found.length > 1) {
+    const group = L.featureGroup(markerGroup.getLayers());
+    map.fitBounds(group.getBounds().pad(0.2), { duration: 1 });
+  }
+
+  addLog(`━━━ SCAN COMPLETE ━━━ Portfolio GDV: ₹${gGDV.toFixed(4)} Cr | ${gClear}/${found.length} Clear`, 'done');
+  toast(`Audit complete · ₹${gGDV.toFixed(4)} Cr GDV`, 'success');
+
+  setLoading(false);
+  progWrap.classList.remove('active');
+  document.getElementById('progress-wrap').classList.remove('active');
+}
+
+/* ──────────────────────────────────────────────────────────
+   5. UI UPDATERS
+   ────────────────────────────────────────────────────────── */
+function updateTiles(parcel, calc, sy) {
+  document.getElementById('resGFA').textContent    = (calc.gfa / 100000).toFixed(4);
+  document.getElementById('resHeight').textContent = calc.floors + 'F';
+  document.getElementById('resUnits').textContent  = calc.units.toLocaleString();
+  document.getElementById('resFSI').textContent    = calc.fsi.toFixed(4);
+  document.getElementById('resGDV').textContent    = '₹' + calc.gdv.toFixed(4) + ' Cr';
+  document.getElementById('resMarginLine').textContent = `Net margin ${calc.margin.toFixed(4)}% after construction`;
+  document.getElementById('resJobs').textContent   = '+' + calc.jobs.toLocaleString();
+  document.getElementById('resWater').textContent  = calc.waterKL.toFixed(4) + ' KL/day';
+  document.getElementById('resHydro').textContent  = calc.rechargeGrade;
+  const nssEl = document.getElementById('resNSS');
+  if (nssEl) {
+    nssEl.textContent = calc.nssScore + ' / 100';
+    nssEl.style.color = calc.nssScore >= 70 ? 'var(--green)' : calc.nssScore >= 45 ? 'var(--amber)' : 'var(--red)';
+  }
+
+  const warn = document.getElementById('resWarning');
+  /* ── Smart Buffer Analysis ─────────────────────────────────────
+     < 545m → inside catchment / FTL zone    → CRITICAL + blue ring
+     < 548m → edge of buffer                 → WARNING
+     Encumbered (any elev)                   → TITLE WARNING
+     ─────────────────────────────────────────────────────────── */
+  if (parcel.elev < 545) {
+    warn.textContent = '⚠ CRITICAL: LAKE BUFFER / FTL ZONE';
+    warn.className = 'badge badge-risk';
+    L.circle([parcel.lat, parcel.lng], {
+      radius: 100, color: '#448AFF', fillColor: '#448AFF',
+      fillOpacity: 0.18, weight: 2, dashArray: '6 4'
+    }).addTo(markerGroup);
+  } else if (parcel.elev < 548) {
+    warn.textContent = '⚠ FTL BUFFER ENCROACHMENT RISK';
+    warn.className = 'badge badge-risk';
+  } else if (parcel.status === 'Encumbered') {
+    warn.textContent = '⚠ TITLE ENCUMBRANCE DETECTED';
+    warn.className = 'badge badge-warn';
+  } else {
+    warn.textContent = '✓ ENVIRONMENTALLY COMPLIANT';
+    warn.className = 'badge badge-safe';
+  }
+}
+
+function updatePortfolio(gGDV, gAcres, gClear, avgMargin) {
+  document.getElementById('portfolioCard').style.display = 'block';
+  document.getElementById('portGDV').textContent    = '₹' + gGDV.toFixed(4) + ' Cr';
+  document.getElementById('portAcres').textContent  = gAcres.toFixed(4);
+  document.getElementById('portClear').textContent  = gClear;
+  document.getElementById('portMargin').textContent = avgMargin.toFixed(4) + '%';
+}
+
+function renderTable() {
+  document.getElementById('resultCount').textContent = `(${auditResults.length})`;
+  const wrap = document.getElementById('resultsTableWrap');
+  if (!auditResults.length) {
+    wrap.innerHTML = '<div class="empty-state"><div class="empty-icon">📋</div><div class="empty-text">No Surveys Audited</div></div>';
+    return;
+  }
+  const rows = auditResults.map(r => {
+    const dotCls = r.parcel.status === 'Clear' ? 'dot-clear' : r.parcel.status === 'Encumbered' ? 'dot-encumbered' : 'dot-partial';
+    return `<tr onclick="selectRow('${r.sy}')" id="row-${r.sy}" class="${activeRowSY === r.sy ? 'active-row' : ''}">
+      <td><span class="sy-badge">${r.sy}</span></td>
+      <td>${r.parcel.acres.toFixed(4)} ac</td>
+      <td style="color:var(--green);font-family:'Space Mono',monospace;font-size:11px;font-weight:700">₹${r.calc.gdv.toFixed(4)}Cr</td>
+      <td><span class="status-dot ${dotCls}"></span></td>
+    </tr>`;
+  }).join('');
+  wrap.innerHTML = `<table class="results-table">
+    <thead><tr><th>Sy#</th><th>Acres</th><th>GDV</th><th>Status</th></tr></thead>
+    <tbody>${rows}</tbody>
+  </table>`;
+}
+
+function selectRow(sy) {
+  activeRowSY = sy;
+  renderTable();
+  const entry = auditResults.find(r => r.sy === sy);
+  if (entry) openDetailDrawer(entry);
+  map.flyTo([entry.parcel.lat, entry.parcel.lng], 17, { duration: 0.7 });
+}
+
+/* ──────────────────────────────────────────────────────────
+   6. MAP MARKERS
+   ────────────────────────────────────────────────────────── */
+function addMapMarker(sy, parcel, calc) {
+  const color = parcel.status === 'Clear' ? '#00E676' : parcel.status === 'Encumbered' ? '#FF1744' : '#FFBF00';
+  const radiusM = 60 + (calc.floors * 4);
+
+  const circle = L.circle([parcel.lat, parcel.lng], {
+    color, fillColor: color, fillOpacity: 0.15, weight: 2, radius: radiusM
+  }).addTo(markerGroup);
+
+  const divIcon = L.divIcon({
+    html: `<div style="background:${color};color:#000;font-family:'Space Mono',monospace;font-size:9px;font-weight:700;padding:3px 7px;border-radius:4px;white-space:nowrap;box-shadow:0 2px 8px rgba(0,0,0,.5)">Sy ${sy}</div>`,
+    className: '', iconAnchor: [20, 0]
+  });
+  const marker = L.marker([parcel.lat, parcel.lng], { icon: divIcon }).addTo(markerGroup);
+
+  const popupHtml = `<div class="map-popup">
+    <div class="mp-sy">Survey ${sy}</div>
+    <div class="mp-row"><span class="mp-k">Status</span><span class="mp-v" style="color:${color}">${parcel.status}</span></div>
+    <div class="mp-row"><span class="mp-k">Acres</span><span class="mp-v">${parcel.acres}</span></div>
+    <div class="mp-row"><span class="mp-k">GDV</span><span class="mp-v" style="color:#00E676">₹${calc.gdv.toFixed(4)} Cr</span></div>
+    <div class="mp-row"><span class="mp-k">Floors</span><span class="mp-v">${calc.floors}F</span></div>
+    <div class="mp-row"><span class="mp-k">Elevation</span><span class="mp-v">${parcel.elev}m</span></div>
+  </div>`;
+
+  circle.bindPopup(popupHtml);
+  marker.on('click', () => { selectRow(sy); circle.openPopup(); });
+}
+
+/* ──────────────────────────────────────────────────────────
+   7. DETAIL DRAWER
+   ────────────────────────────────────────────────────────── */
+function openDetailDrawer(entry) {
+  const { sy, parcel, calc } = entry;
+  const cfg = ZONE_CONFIG[entry.zone];
+
+  document.getElementById('detailSY').textContent = 'Survey ' + sy;
+  document.getElementById('d-zone').textContent   = cfg.label;
+  document.getElementById('d-acres').textContent  = parcel.acres + ' ac';
+  document.getElementById('d-usable').textContent = calc.usable.toFixed(4) + ' ac';
+  document.getElementById('d-fsi').textContent    = calc.fsi.toFixed(4);
+  document.getElementById('d-owner').textContent  = parcel.owner;
+  document.getElementById('d-patta').textContent  = parcel.patta;
+
+  const statusEl = document.getElementById('d-status');
+  statusEl.textContent = parcel.status;
+  statusEl.className = 'detail-value ' + (parcel.status === 'Clear' ? 'green' : parcel.status === 'Encumbered' ? 'red' : 'amber');
+
+  document.getElementById('d-elev').textContent  = parcel.elev + ' m';
+  document.getElementById('d-slope').textContent = parcel.slope + '%';
+  document.getElementById('d-ftl').textContent   = parcel.elev < 545 ? '⚠ CRITICAL — FTL ZONE' : parcel.elev < 548 ? '⚠ BUFFER EDGE RISK' : '✓ Safe';
+  document.getElementById('d-ftl').className     = 'detail-value ' + (parcel.elev < 545 ? 'red' : parcel.elev < 548 ? 'amber' : 'green');
+  document.getElementById('d-hydro').textContent = calc.rechargeGrade;
+  document.getElementById('d-recharge').textContent = calc.isRechargeZone ? '✓ YES — Protected Zone' : '✗ No';
+  document.getElementById('d-recharge').className   = 'detail-value ' + (calc.isRechargeZone ? 'green' : 'red');
+
+  document.getElementById('d-gfa').textContent    = (calc.gfa / 100000).toFixed(4);
+  document.getElementById('d-units').textContent  = calc.units.toLocaleString();
+  document.getElementById('d-rate').textContent   = '₹' + calc.rate.toLocaleString();
+  document.getElementById('d-gdv').textContent    = '₹' + calc.gdv.toFixed(4) + ' Cr';
+  document.getElementById('d-cost').textContent   = '₹' + calc.conCost.toFixed(4) + ' Cr';
+  document.getElementById('d-margin').textContent = calc.margin.toFixed(4) + '%';
+
+  document.getElementById('d-jobs').textContent  = '+' + calc.jobs.toLocaleString();
+  document.getElementById('d-water').textContent = calc.waterKL.toFixed(4) + ' KL/day';
+  document.getElementById('d-nss').textContent  = calc.nssScore + ' / 100 — ' + (calc.nssScore >= 70 ? 'GREEN ZONE' : calc.nssScore >= 45 ? 'CAUTION' : 'HIGH RISK');
+  document.getElementById('d-road').textContent  = parcel.roadWidth + ' ft min.';
+
+  // Sensitivity bars
+  const maxGDV = Math.max(...calc.sensitivity.map(s => s.gdv));
+  document.getElementById('sensitivity-bars').innerHTML = calc.sensitivity.map(s => {
+    const pct = (s.gdv / maxGDV * 100).toFixed(0);
+    const isBase = s.label === 'Base';
+    const color = s.label.startsWith('Bear') ? '#FF1744' : s.label.startsWith('Bull') ? '#00E676' : '#FFBF00';
+    return `<div class="sensitivity-bar">
+      <div class="sens-label">
+        <span>${s.label}</span>
+        <span style="color:${color}">₹${s.gdv.toFixed(4)} Cr &nbsp;<span style="opacity:.6;font-size:9px">${s.margin.toFixed(4)}% margin</span></span>
+      </div>
+      <div class="sens-track"><div class="sens-fill" style="width:${pct}%;background:${color}"></div></div>
+    </div>`;
+  }).join('');
+
+  document.getElementById('detail-drawer').classList.add('open');
+}
+
+function closeDrawer() {
+  document.getElementById('detail-drawer').classList.remove('open');
+}
+
+function toggleDrawer() {
+  const d = document.getElementById('detail-drawer');
+  if (d.classList.contains('open')) closeDrawer();
+  else if (auditResults.length) openDetailDrawer(auditResults[auditResults.length - 1]);
+  else toast('Run an audit first', 'info');
+}
+
+/* ──────────────────────────────────────────────────────────
+   8. EXPORT PDF
+   ────────────────────────────────────────────────────────── */
+function exportReport() {
+  if (!auditResults.length) { toast('Run an audit before exporting', 'info'); return; }
+  toast('Generating executive PDF report...', 'info');
+
+  const zone        = ZONE_CONFIG[currentZone].label;
+  const cfg         = ZONE_CONFIG[currentZone];
+  const totalGDV    = parseFloat(auditResults.reduce((s, r) => s + r.calc.gdv,    0).toFixed(4));
+  const totalAcres  = parseFloat(auditResults.reduce((s, r) => s + r.calc.usable, 0).toFixed(4));
+  const totalJobs   = auditResults.reduce((s, r) => s + r.calc.jobs, 0);
+  const totalWater  = parseFloat(auditResults.reduce((s, r) => s + r.calc.waterKL, 0).toFixed(4));
+  const clearCount  = auditResults.filter(r => r.parcel.status === 'Clear').length;
+  const flagCount   = auditResults.filter(r => r.parcel.elev < 548).length;
+  const avgScore     = parseFloat((auditResults.reduce((s, r) => s + r.calc.nssScore, 0) / auditResults.length).toFixed(4));
+  const avgMargin   = parseFloat((auditResults.reduce((s, r) => s + r.calc.margin,   0) / auditResults.length).toFixed(4));
+  const nssColor    = avgScore >= 70 ? '#007700' : avgScore >= 45 ? '#b85a00' : '#cc0000';
+  const nssLabel    = avgScore >= 70 ? 'GREEN — Low Environmental Risk'
+                    : avgScore >= 45 ? 'AMBER — Moderate Risk, Mitigation Needed'
+                    :                'RED — High Risk, Review Recommended';
+
+  /* ── Per-parcel rows ─────────────────────────────────────── */
+  const tableRows = auditResults.map(r => {
+    const flagStyle = r.parcel.elev < 545 ? 'background:#fff0f0' : r.parcel.elev < 548 ? 'background:#fffbe6' : '';
+    const statusColor = r.parcel.status === 'Clear' ? '#007700' : r.parcel.status === 'Encumbered' ? '#cc0000' : '#b85a00';
+    const nssC = r.calc.nssScore >= 70 ? '#007700' : r.calc.nssScore >= 45 ? '#b85a00' : '#cc0000';
+    return `<tr style="${flagStyle}">
+      <td style="padding:7px 10px;border-bottom:1px solid #eee;font-family:monospace;font-weight:700;font-size:12px">Sy ${r.sy}</td>
+      <td style="padding:7px 10px;border-bottom:1px solid #eee;font-size:11px">${r.parcel.acres} ac</td>
+      <td style="padding:7px 10px;border-bottom:1px solid #eee;font-weight:700;color:${statusColor};font-size:11px">${r.parcel.status}</td>
+      <td style="padding:7px 10px;border-bottom:1px solid #eee;font-size:11px">${(r.calc.gfa / 100000).toFixed(4)}</td>
+      <td style="padding:7px 10px;border-bottom:1px solid #eee;font-size:11px">${r.calc.floors}F / ${r.calc.units} units</td>
+      <td style="padding:7px 10px;border-bottom:1px solid #eee;font-weight:700;color:#007700;font-size:11px">₹${r.calc.gdv.toFixed(4)} Cr</td>
+      <td style="padding:7px 10px;border-bottom:1px solid #eee;font-size:11px">${r.calc.margin.toFixed(4)}%</td>
+      <td style="padding:7px 10px;border-bottom:1px solid #eee;font-weight:700;color:${nssC};font-size:11px">${r.calc.nssScore}/100</td>
+      <td style="padding:7px 10px;border-bottom:1px solid #eee;font-size:10px">${r.calc.rechargeGrade.split(' ')[0]}</td>
+      <td style="padding:7px 10px;border-bottom:1px solid #eee;font-size:10px">${r.parcel.elev < 545 ? '🔴 CRITICAL' : r.parcel.elev < 548 ? '🟡 WARNING' : '🟢 Safe'}</td>
+    </tr>`;
+  }).join('');
+
+  /* ── Sensitivity table rows ──────────────────────────────── */
+  const sensLabels = ['Bear -20%', 'Base', 'Bull +15%', 'Bull +30%'];
+  const sensColors = ['#cc0000', '#b85a00', '#007700', '#005500'];
+  const sensRows = sensLabels.map((lbl, i) => {
+    const vals = auditResults.map(r => r.calc.sensitivity[i]);
+    const totalSensGDV    = parseFloat(vals.reduce((s, v) => s + v.gdv,    0).toFixed(4));
+    const avgSensMargin   = parseFloat((vals.reduce((s, v) => s + v.margin, 0) / vals.length).toFixed(4));
+    return `<tr>
+      <td style="padding:8px 12px;border-bottom:1px solid #eee;font-weight:700;color:${sensColors[i]};font-size:12px">${lbl}</td>
+      <td style="padding:8px 12px;border-bottom:1px solid #eee;font-family:monospace;font-weight:700;color:${sensColors[i]};font-size:13px">₹${totalSensGDV.toFixed(4)} Cr</td>
+      <td style="padding:8px 12px;border-bottom:1px solid #eee;font-size:11px">${avgSensMargin.toFixed(4)}%</td>
+      <td style="padding:8px 12px;border-bottom:1px solid #eee;font-size:11px">₹${(cfg.rate * (i === 0 ? 0.8 : i === 1 ? 1 : i === 2 ? 1.15 : 1.3)).toLocaleString()}/sft</td>
+    </tr>`;
+  }).join('');
+
+  const genDate = new Date().toLocaleDateString('en-IN', { day:'2-digit', month:'long', year:'numeric' });
+
+  const html_report = `
+  <div id="pdf-export-root" style="font-family:Arial,sans-serif;color:#111;max-width:980px;padding:36px 40px">
+
+    <!-- ══ HEADER ══════════════════════════════════════════════════ -->
+    <div style="display:flex;justify-content:space-between;align-items:flex-end;padding-bottom:18px;border-bottom:4px solid #FFBF00;margin-bottom:28px">
+      <div>
+        <div style="font-size:30px;font-weight:900;letter-spacing:-1px;line-height:1">SENTINEL</div>
+        <div style="font-size:11px;color:#888;text-transform:uppercase;letter-spacing:3px;margin-top:4px">Spatial Intelligence & Sustainability Platform · v2.0</div>
+        <div style="font-size:13px;font-weight:700;color:#FFBF00;margin-top:8px">Executive Audit Report — ${zone} Corridor</div>
+      </div>
+      <div style="text-align:right">
+        <div style="font-size:10px;color:#999;margin-bottom:3px">Generated: ${genDate}</div>
+        <div style="font-size:10px;color:#999;margin-bottom:3px">Zone FSI: ${cfg.fsi} &nbsp;|&nbsp; Base Rate: ₹${cfg.rate.toLocaleString()}/sft</div>
+        <div style="font-size:10px;color:#999">Construction Cost: ₹${cfg.conCost.toLocaleString()}/sft</div>
+        <div style="display:inline-block;margin-top:8px;padding:4px 12px;background:#FFBF00;border-radius:4px;font-size:10px;font-weight:900;text-transform:uppercase;letter-spacing:1px">Sentinel · Spatial Intelligence Platform</div>
+      </div>
+    </div>
+
+    <!-- ══ KPI SUMMARY TILES ════════════════════════════════════════ -->
+    <div style="display:grid;grid-template-columns:repeat(6,1fr);gap:12px;margin-bottom:28px">
+      ${[
+        ['Portfolio GDV', '₹' + totalGDV.toFixed(4) + ' Cr', '#007700'],
+        ['Net Usable Acres', totalAcres.toFixed(4) + ' ac', '#111'],
+        ['Surveys Audited', auditResults.length, '#111'],
+        ['Clear Title', clearCount + '/' + auditResults.length, '#007700'],
+        ['FTL Flags', flagCount, flagCount > 0 ? '#cc0000' : '#007700'],
+        ['Avg Margin', avgMargin.toFixed(4) + '%', '#b85a00'],
+      ].map(([l,v,c]) => `<div style="background:#f7f7f7;padding:14px;border-radius:6px;border-top:3px solid #FFBF00">
+        <div style="font-size:8px;text-transform:uppercase;letter-spacing:1.5px;color:#999;margin-bottom:6px">${l}</div>
+        <div style="font-size:17px;font-weight:900;color:${c};line-height:1">${v}</div>
+      </div>`).join('')}
+    </div>
+
+    <!-- ══ SECTION 1: Env. SUSTAINABILITY WATCHDOG ══════════════════ -->
+    <div style="margin-bottom:28px">
+      <div style="font-size:13px;font-weight:900;text-transform:uppercase;letter-spacing:2px;color:#333;border-left:4px solid #FFBF00;padding-left:12px;margin-bottom:16px">
+        Section 1 · Env. Sustainability Watchdog
+      </div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px">
+        <div style="background:#f7f7f7;padding:18px;border-radius:8px">
+          <div style="font-size:10px;text-transform:uppercase;letter-spacing:1.5px;color:#999;margin-bottom:8px">Portfolio Env. Score</div>
+          <div style="font-size:36px;font-weight:900;color:${nssColor};line-height:1">${avgScore}<span style="font-size:16px;font-weight:400;color:#999"> / 100</span></div>
+          <div style="font-size:10px;font-weight:700;color:${nssColor};margin-top:6px">${nssLabel}</div>
+          <div style="height:6px;background:#e0e0e0;border-radius:3px;margin-top:12px;overflow:hidden">
+            <div style="height:100%;width:${avgScore}%;background:${nssColor};border-radius:3px"></div>
+          </div>
+        </div>
+        <div style="background:#f7f7f7;padding:18px;border-radius:8px">
+          <div style="font-size:10px;text-transform:uppercase;letter-spacing:1.5px;color:#999;margin-bottom:12px">Score Methodology</div>
+          ${[
+            ['Slope Factor (≤4%)',       '25 pts', 'Flatter terrain = higher recharge potential'],
+            ['Elevation Safety (FTL)',   '25 pts', 'Higher elevation = lower catchment risk'],
+            ['Recharge Zone Presence',   '20 pts', 'Slope < 3% qualifies as recharge zone'],
+            ['Title Cleanliness',        '15 pts', 'Clear title = lower development friction'],
+            ['Water Stress Index',       '15 pts', 'Demand vs. sustainable aquifer yield'],
+          ].map(([k,v,d]) => `<div style="display:flex;justify-content:space-between;padding:5px 0;border-bottom:1px solid #e8e8e8;font-size:10px">
+            <span><b>${k}</b><br><span style="color:#999">${d}</span></span>
+            <span style="font-weight:900;color:#FFBF00;font-size:13px">${v}</span>
+          </div>`).join('')}
+        </div>
+      </div>
+    </div>
+
+    <!-- ══ SECTION 2: COMMUNITY IMPACT ═════════════════════════════ -->
+    <div style="margin-bottom:28px">
+      <div style="font-size:13px;font-weight:900;text-transform:uppercase;letter-spacing:2px;color:#333;border-left:4px solid #FFBF00;padding-left:12px;margin-bottom:16px">
+        Section 2 · Community Impact Analysis
+      </div>
+      <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:12px;margin-bottom:16px">
+        <div style="background:#f0fff4;padding:16px;border-radius:8px;border:1px solid #c3e6cb">
+          <div style="font-size:9px;text-transform:uppercase;letter-spacing:1.5px;color:#555;margin-bottom:6px">Total Construction Jobs</div>
+          <div style="font-size:26px;font-weight:900;color:#007700">+${totalJobs.toLocaleString()}</div>
+          <div style="font-size:10px;color:#555;margin-top:4px">Direct employment, construction phase<br>Formula: GFA ÷ 1000 × 1.5 workers</div>
+        </div>
+        <div style="background:#fff8f0;padding:16px;border-radius:8px;border:1px solid #ffd6a5">
+          <div style="font-size:9px;text-transform:uppercase;letter-spacing:1.5px;color:#555;margin-bottom:6px">Daily Water Demand</div>
+          <div style="font-size:26px;font-weight:900;color:#b85a00">${totalWater.toFixed(4)} KL</div>
+          <div style="font-size:10px;color:#555;margin-top:4px">Litres/day at full occupancy<br>Formula: Units × 5 residents × 135 L (IS:1172)</div>
+        </div>
+        <div style="background:#f0f4ff;padding:16px;border-radius:8px;border:1px solid #b3c3e6">
+          <div style="font-size:9px;text-transform:uppercase;letter-spacing:1.5px;color:#555;margin-bottom:6px">FTL / Buffer Flagged</div>
+          <div style="font-size:26px;font-weight:900;color:${flagCount > 0 ? '#cc0000' : '#007700'}">${flagCount} / ${auditResults.length}</div>
+          <div style="font-size:10px;color:#555;margin-top:4px">Parcels in lake catchment / FTL zone<br>Elevation threshold: &lt; 545m HMSL</div>
+        </div>
+      </div>
+      <div style="background:#fffbe6;padding:12px 16px;border-radius:6px;border-left:4px solid #FFBF00;font-size:10px;color:#555">
+        <b>Analyst Note:</b> The combined daily water demand of ${totalWater.toFixed(4)} KL/day represents significant groundwater stress on the ${zone} aquifer system.
+        ${flagCount > 0 ? `<b>${flagCount} parcel(s) are within FTL buffer zones</b> — construction here risks permanent damage to lake catchment and recharge pathways.` : 'All surveyed parcels are outside critical FTL buffer zones — proceed with standard due diligence.'}
+      </div>
+    </div>
+
+    <!-- ══ SECTION 3: SENSITIVITY ANALYSIS ═════════════════════════ -->
+    <div style="margin-bottom:28px">
+      <div style="font-size:13px;font-weight:900;text-transform:uppercase;letter-spacing:2px;color:#333;border-left:4px solid #FFBF00;padding-left:12px;margin-bottom:16px">
+        Section 3 · Market Sensitivity Analysis (Bear / Base / Bull)
+      </div>
+      <table style="width:100%;border-collapse:collapse">
+        <thead>
+          <tr style="background:#111;color:#fff">
+            <th style="padding:10px 12px;text-align:left;font-size:10px;text-transform:uppercase;letter-spacing:1px">Scenario</th>
+            <th style="padding:10px 12px;text-align:left;font-size:10px;text-transform:uppercase;letter-spacing:1px">Portfolio GDV</th>
+            <th style="padding:10px 12px;text-align:left;font-size:10px;text-transform:uppercase;letter-spacing:1px">Avg Net Margin</th>
+            <th style="padding:10px 12px;text-align:left;font-size:10px;text-transform:uppercase;letter-spacing:1px">Implied Rate</th>
+          </tr>
+        </thead>
+        <tbody>${sensRows}</tbody>
+      </table>
+      <div style="font-size:9px;color:#aaa;margin-top:8px">
+        Sensitivity assumes FSI ${cfg.fsi} · Construction cost fixed at ₹${cfg.conCost.toLocaleString()}/sft · All figures in INR Crores
+      </div>
+    </div>
+
+    <!-- ══ SECTION 4: PARCEL DNA TABLE ═════════════════════════════ -->
+    <div style="margin-bottom:28px">
+      <div style="font-size:13px;font-weight:900;text-transform:uppercase;letter-spacing:2px;color:#333;border-left:4px solid #FFBF00;padding-left:12px;margin-bottom:16px">
+        Section 4 · Full Parcel Audit Table
+      </div>
+      <table style="width:100%;border-collapse:collapse;font-size:11px">
+        <thead>
+          <tr style="background:#FFBF00">
+            <th style="padding:9px 10px;text-align:left;font-size:9px;text-transform:uppercase;letter-spacing:1px">Survey</th>
+            <th style="padding:9px 10px;text-align:left;font-size:9px;text-transform:uppercase">Acres</th>
+            <th style="padding:9px 10px;text-align:left;font-size:9px;text-transform:uppercase">Title</th>
+            <th style="padding:9px 10px;text-align:left;font-size:9px;text-transform:uppercase">GFA (L.sft)</th>
+            <th style="padding:9px 10px;text-align:left;font-size:9px;text-transform:uppercase">Floors/Units</th>
+            <th style="padding:9px 10px;text-align:left;font-size:9px;text-transform:uppercase">GDV (Cr)</th>
+            <th style="padding:9px 10px;text-align:left;font-size:9px;text-transform:uppercase">Margin</th>
+            <th style="padding:9px 10px;text-align:left;font-size:9px;text-transform:uppercase">Env. Score</th>
+            <th style="padding:9px 10px;text-align:left;font-size:9px;text-transform:uppercase">Recharge</th>
+            <th style="padding:9px 10px;text-align:left;font-size:9px;text-transform:uppercase">FTL</th>
+          </tr>
+        </thead>
+        <tbody>${tableRows}</tbody>
+      </table>
+      <div style="display:flex;gap:16px;margin-top:10px;font-size:9px;color:#888">
+        <span>🔴 Red row = elev &lt; 545m (FTL Critical)</span>
+        <span>🟡 Yellow row = elev 545–548m (Buffer Edge)</span>
+        <span>White = Compliant</span>
+      </div>
+    </div>
+
+    <!-- ══ FOOTER ═══════════════════════════════════════════════════ -->
+    <div style="border-top:1px solid #ddd;padding-top:14px;font-size:9px;color:#aaa;line-height:1.6">
+      <b>SENTINEL v2.0</b> · Land Intelligence Platform · Generated ${genDate} · Zone: ${zone}<br>
+      Disclaimer: Financial projections are model estimates based on current market data and FSI regulations. All figures are subject to full legal, environmental, and financial due diligence before any transaction. This report is prepared for internal planning purposes only.<br>
+      Env. Sustainability Score methodology based on HMDA FTL guidelines, BIS IS:1172 water consumption norms, and groundwater recharge zone classification per CGWB guidelines.
+    </div>
+
+  </div>`;
+
+  const wrapper = document.createElement('div');
+  wrapper.innerHTML = html_report;
+  document.body.appendChild(wrapper);
+
+  html2pdf().from(wrapper).set({
+    margin: [5, 5, 5, 5],
+    filename: `Sentinel_${zone}_ExecutiveReport_${Date.now()}.pdf`,
+    html2canvas: { scale: 2, useCORS: true },
+    jsPDF: { unit: 'mm', format: 'a4', orientation: 'landscape' }
+  }).save().then(() => {
+    document.body.removeChild(wrapper);
+    toast('Executive PDF exported successfully', 'success');
+  });
+}
+/* ──────────────────────────────────────────────────────────
+   9. CLEAR / RESET
+   ────────────────────────────────────────────────────────── */
+function clearAll() {
+  auditResults = [];
+  activeRowSY = null;
+  markerGroup.clearLayers();
+  closeDrawer();
+
+  ['resGFA','resHeight','resUnits','resFSI','resJobs','resWater','resHydro'].forEach(id => {
+    document.getElementById(id).textContent = '—';
+  });
+  document.getElementById('resGDV').textContent = '₹0 Cr';
+  document.getElementById('resMarginLine').textContent = '';
+  document.getElementById('resWarning').textContent = 'AWAITING DATA';
+  document.getElementById('resWarning').className = 'badge badge-idle';
+  document.getElementById('portfolioCard').style.display = 'none';
+  document.getElementById('resultCount').textContent = '';
+  document.getElementById('resultsTableWrap').innerHTML = '<div class="empty-state"><div class="empty-icon">📋</div><div class="empty-text">No Surveys Audited</div></div>';
+  document.getElementById('surveyInput').value = '';
+  document.getElementById('log-panel').innerHTML = '<div class="log-line">[ SENTINEL ENGINE v2.0 READY — CLEARED ]</div>';
+
+  resetView();
+  toast('Dashboard cleared', 'info');
+}
+
+/* ──────────────────────────────────────────────────────────
+   10. HELPERS
+   ────────────────────────────────────────────────────────── */
+function setLoading(on) {
+  const btn = document.getElementById('launchBtn');
+  btn.disabled = on;
+  btn.classList.toggle('loading', on);
+}
+
+function addLog(msg, cls = '') {
+  const panel = document.getElementById('log-panel');
+  const line = document.createElement('div');
+  line.className = 'log-line ' + cls;
+  line.textContent = msg;
+  panel.prepend(line);
+  setTimeout(() => line.classList.remove('new'), 1500);
+  while (panel.children.length > 40) panel.removeChild(panel.lastChild);
+}
+
+function toast(msg, type = 'info') {
+  const container = document.getElementById('toast-container');
+  const el = document.createElement('div');
+  el.className = `toast toast-${type}`;
+  el.textContent = msg;
+  container.appendChild(el);
+  setTimeout(() => { el.style.opacity = '0'; el.style.transition = 'opacity .3s'; setTimeout(() => el.remove(), 300); }, 3000);
+}
+
+function sleep(ms) { return new Promise(r => setTimeout(r, ms)); }
+
+/* ── 11. THEME TOGGLE ─────────────────────────────────────────── */
+function toggleTheme() {
+  document.body.classList.toggle('light-mode');
+  const btn = document.getElementById('themeBtn');
+  const isLight = document.body.classList.contains('light-mode');
+  btn.textContent = isLight ? '☀️' : '🌙';
+  try { localStorage.setItem('sentinel_theme', isLight ? 'light' : 'dark'); } catch(e) {}
+  toast('Theme: ' + (isLight ? 'Light Mode' : 'Dark Mode'), 'info');
+}
+(function initTheme() {
+  try { if (localStorage.getItem('sentinel_theme') === 'light') toggleTheme(); } catch(e) {}
+})();
+
+/* ── 12. CSV EXPORT ───────────────────────────────────────────── */
+function exportCSV() {
+  if (!auditResults.length) { toast('Run an audit before exporting', 'info'); return; }
+  const headers = ['Survey','Zone','Acres','UsableAcres','Status','Owner','Patta','FSI',
+    'GFA_LakhSft','Floors','Units','GDV_Cr','ConCost_Cr','Margin_pct',
+    'Jobs','WaterDemand_KLDay','EnvScore','RechargeGrade','FTL_Status',
+    'Elevation_m','Slope_pct'];
+  const rows = auditResults.map(r => [
+    r.sy, ZONE_CONFIG[r.zone].label, r.parcel.acres, r.calc.usable,
+    r.parcel.status, r.parcel.owner || '', r.parcel.patta || '',
+    r.calc.fsi, (r.calc.gfa/100000).toFixed(4), r.calc.floors, r.calc.units,
+    r.calc.gdv.toFixed(4), r.calc.conCost.toFixed(4), r.calc.margin.toFixed(4),
+    r.calc.jobs, r.calc.waterKL.toFixed(4),
+    r.calc.nssScore, r.calc.rechargeGrade.trim(), r.calc.ftlStatus,
+    r.parcel.elev, r.parcel.slope
+  ].join(','));
+  const csv = [headers.join(','), ...rows].join('\n');
+  const blob = new Blob([csv], { type: 'text/csv' });
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = `Sentinel_${ZONE_CONFIG[currentZone].label}_${Date.now()}.csv`;
+  a.click();
+  toast('CSV exported — ' + auditResults.length + ' parcels', 'success');
+}
+
+/* ── 13. SHARE LINK / PERMALINK ───────────────────────────────── */
+function shareLink() {
+  const syList = auditResults.map(r => r.sy).join(',');
+  if (!syList) { toast('Run an audit first', 'info'); return; }
+  const params = new URLSearchParams({ zone: currentZone, sy: syList });
+  const url = window.location.origin + window.location.pathname + '?' + params.toString();
+  try {
+    navigator.clipboard.writeText(url).then(() => toast('Share link copied to clipboard ✓', 'success'));
+  } catch(e) {
+    prompt('Copy this link:', url);
+  }
+}
+/* Auto-load from URL params on page load */
+window.addEventListener('load', () => {
+  try {
+    const p = new URLSearchParams(window.location.search);
+    if (p.has('zone') && p.has('sy')) {
+      const z = p.get('zone');
+      const sy = p.get('sy');
+      if (ZONE_CONFIG[z]) {
+        currentZone = z;
+        document.querySelectorAll('.zone-chip').forEach(c => c.classList.remove('active'));
+        document.querySelectorAll('.zone-chip').forEach(c => {
+          if (c.textContent.toLowerCase() === ZONE_CONFIG[z].label.toLowerCase()) c.classList.add('active');
+        });
+        document.getElementById('zoneLabel').textContent = 'Zone: ' + ZONE_CONFIG[z].label;
+        document.getElementById('surveyInput').value = sy;
+        addLog(`↗ Auto-loaded from share link: Zone ${ZONE_CONFIG[z].label}, Sy ${sy}`, 'warn');
+        toast('Shared session loaded — press Launch to audit', 'info');
+      }
+    }
+  } catch(e) {}
+});
+
+/* ── 14. COPY GDV TO CLIPBOARD ────────────────────────────────── */
+function copyGDV() {
+  if (!auditResults.length) { toast('Nothing to copy yet', 'info'); return; }
+  const totalGDV = auditResults.reduce((s, r) => s + r.calc.gdv, 0).toFixed(4);
+  const text = `Sentinel Audit — ${ZONE_CONFIG[currentZone].label} | Portfolio GDV: ₹${totalGDV} Cr | ${auditResults.length} parcels`;
+  try {
+    navigator.clipboard.writeText(text).then(() => toast('GDV copied to clipboard ✓', 'success'));
+  } catch(e) { toast('Copy not supported in this browser', 'error'); }
+}
+
+/* ── 15. UNDO LAST PARCEL ─────────────────────────────────────── */
+function undoLastParcel() {
+  if (!auditResults.length) { toast('Nothing to undo', 'info'); return; }
+  const removed = auditResults.pop();
+  markerGroup.clearLayers();
+  auditResults.forEach(r => addMapMarker(r.sy, r.parcel, r.calc));
+  renderTable();
+  if (auditResults.length) {
+    const last = auditResults[auditResults.length - 1];
+    updateTiles(last.parcel, last.calc, last.sy);
+    const gGDV   = parseFloat(auditResults.reduce((s,r) => s + r.calc.gdv, 0).toFixed(4));
+    const gAcres = parseFloat(auditResults.reduce((s,r) => s + r.calc.usable, 0).toFixed(4));
+    const gClear = auditResults.filter(r => r.parcel.status === 'Clear').length;
+    const gMargin= auditResults.reduce((s,r) => s + r.calc.margin, 0) / auditResults.length;
+    updatePortfolio(gGDV, gAcres, gClear, gMargin);
+  }
+  addLog(`↩ Undo: Sy ${removed.sy} removed from session`, 'warn');
+  toast(`Undo: Sy ${removed.sy} removed`, 'info');
+}
+
+/* ── 16. COMPARE MODE ─────────────────────────────────────────── */
+let compareMode = false;
+let compareSel  = [];
+function toggleCompare() {
+  compareMode = !compareMode;
+  compareSel  = [];
+  const btn = document.getElementById('compareBtn');
+  const panel = document.getElementById('comparePanel');
+  btn.style.borderColor = compareMode ? 'var(--amber)' : '';
+  btn.style.color       = compareMode ? 'var(--amber)' : '';
+  panel.style.display   = 'none';
+  panel.innerHTML       = '';
+  renderTable();
+  if (compareMode) toast('Compare mode ON — click 2 rows from results', 'info');
+  else             toast('Compare mode OFF', 'info');
+}
+function addToCompare(sy) {
+  if (!compareMode) return;
+  if (compareSel.includes(sy)) { compareSel = compareSel.filter(s => s !== sy); }
+  else if (compareSel.length < 2) { compareSel.push(sy); }
+  else { compareSel = [compareSel[1], sy]; }
+  renderTable();
+  if (compareSel.length === 2) renderCompare();
+}
+function renderCompare() {
+  const [a, b] = compareSel.map(sy => auditResults.find(r => r.sy === sy));
+  if (!a || !b) return;
+  const panel = document.getElementById('comparePanel');
+  const metrics = [
+    ['Acres',       a.parcel.acres.toFixed(4),                 b.parcel.acres.toFixed(4),        'higher'],
+    ['Usable Ac',   a.calc.usable.toFixed(4),                  b.calc.usable.toFixed(4),         'higher'],
+    ['GDV (Cr)',    '₹'+a.calc.gdv.toFixed(4),                 '₹'+b.calc.gdv.toFixed(4),        'higher'],
+    ['Margin %',    a.calc.margin.toFixed(4)+'%',              b.calc.margin.toFixed(4)+'%',     'higher'],
+    ['Floors',      a.calc.floors,                              b.calc.floors,                    'higher'],
+    ['Units',       a.calc.units.toLocaleString(),              b.calc.units.toLocaleString(),    'higher'],
+    ['Env Score',   a.calc.nssScore+'/100',                    b.calc.nssScore+'/100',           'higher'],
+    ['Water (KL)',  a.calc.waterKL.toFixed(4),                 b.calc.waterKL.toFixed(4),        'lower'],
+    ['FTL Status',  a.calc.ftlStatus,                           b.calc.ftlStatus,                 'safe'],
+    ['Title',       a.parcel.status,                            b.parcel.status,                  'clear'],
+  ];
+  const rows = metrics.map(([label, va, vb, prefer]) => {
+    const na = parseFloat(va) || 0;
+    const nb = parseFloat(vb) || 0;
+    let winA = '', winB = '';
+    if (prefer === 'higher') { winA = na > nb ? '▲' : ''; winB = nb > na ? '▲' : ''; }
+    if (prefer === 'lower')  { winA = na < nb ? '▼' : ''; winB = nb < na ? '▼' : ''; }
+    return `<div style="display:grid;grid-template-columns:2fr 1fr 1fr;gap:6px;padding:5px 0;border-bottom:1px solid var(--border);font-size:11px;align-items:center">
+      <span style="color:var(--muted);font-size:9px;text-transform:uppercase;letter-spacing:1px">${label}</span>
+      <span style="font-family:'Space Mono',monospace;font-weight:700;color:${winA?'var(--green)':'var(--text)'}">
+        ${va} <span style="color:var(--green);font-size:10px">${winA}</span>
+      </span>
+      <span style="font-family:'Space Mono',monospace;font-weight:700;color:${winB?'var(--green)':'var(--text)'}">
+        ${vb} <span style="color:var(--green);font-size:10px">${winB}</span>
+      </span>
+    </div>`;
+  }).join('');
+  panel.style.display = 'block';
+  panel.innerHTML = `<div style="background:var(--card);border:1px solid var(--border2);border-radius:10px;padding:14px">
+    <div style="display:grid;grid-template-columns:2fr 1fr 1fr;gap:6px;margin-bottom:8px">
+      <span style="font-size:9px;color:var(--muted);text-transform:uppercase;letter-spacing:1px">Metric</span>
+      <span style="font-size:10px;font-weight:900;color:var(--amber)">Sy ${a.sy}</span>
+      <span style="font-size:10px;font-weight:900;color:var(--blue)">Sy ${b.sy}</span>
+    </div>
+    ${rows}
+    <div style="font-size:9px;color:var(--muted);margin-top:8px">▲ = winner on this metric</div>
+  </div>`;
+}
+
+/* ── 17. GEOJSON POLYGON TOGGLE (stub — loads from geojson/ folder) */
+let geoLayer = null;
+let geoVisible = false;
+function toggleGeoJSON() {
+  const btn = document.getElementById('geoBtn');
+  if (geoLayer && geoVisible) {
+    map.removeLayer(geoLayer); geoVisible = false;
+    btn.classList.remove('active-layer');
+    toast('Plot polygons hidden', 'info'); return;
+  }
+  // Attempt to load from geojson/<zone>.geojson
+  fetch(`geojson/${currentZone}.geojson`)
+    .then(r => { if (!r.ok) throw new Error('No GeoJSON file'); return r.json(); })
+    .then(data => {
+      if (geoLayer) map.removeLayer(geoLayer);
+      geoLayer = L.geoJSON(data, {
+        style: f => ({
+          color: '#FFBF00', weight: 2, fillColor: '#FFBF00',
+          fillOpacity: f.properties?.status === 'Clear' ? 0.08 : 0.04
+        }),
+        onEachFeature: (f, l) => {
+          if (f.properties?.sy) l.bindPopup(`<div class="map-popup"><div class="mp-sy">Sy ${f.properties.sy}</div></div>`);
+        }
+      }).addTo(map);
+      geoVisible = true;
+      btn.classList.add('active-layer');
+      toast('Plot polygons loaded ✓', 'success');
+    })
+    .catch(() => {
+      toast('No GeoJSON for this zone — add geojson/' + currentZone + '.geojson', 'info');
+    });
+}
+
+/* ── 18. LOCATE ME (GPS) ──────────────────────────────────────── */
+function locateMe() {
+  if (!navigator.geolocation) { toast('Geolocation not supported', 'error'); return; }
+  navigator.geolocation.getCurrentPosition(pos => {
+    const { latitude: lat, longitude: lng } = pos.coords;
+    map.flyTo([lat, lng], 15, { duration: 1.2 });
+    L.circle([lat, lng], { radius: 50, color: '#448AFF', fillOpacity: 0.3 }).addTo(markerGroup);
+    toast('Located at ' + lat.toFixed(4) + ', ' + lng.toFixed(4), 'success');
+  }, () => toast('Location access denied', 'error'));
+}
+
+/* ── 19. DEBOUNCE HELPER (rate limiting) ─────────────────────── */
+function debounce(fn, ms) {
+  let t; return (...args) => { clearTimeout(t); t = setTimeout(() => fn(...args), ms); };
+}
+/* Debounced audit trigger for real-time input (500ms delay) */
+document.addEventListener('DOMContentLoaded', () => {
+  const inp = document.getElementById('surveyInput');
+  if (inp) inp.addEventListener('keydown', e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); runAudit(); } });
+});
+
+/* ── 20. KEYBOARD SHORTCUTS ───────────────────────────────────── */
+document.addEventListener('keydown', e => {
+  if (e.target.tagName === 'TEXTAREA' || e.target.tagName === 'INPUT') return;
+  const ctrl = e.ctrlKey || e.metaKey;
+  if (ctrl && e.key === 'p')            { e.preventDefault(); exportReport(); }
+  if (ctrl && e.key === 'e')            { e.preventDefault(); exportCSV(); }
+  if (ctrl && e.shiftKey && e.key ==='S') { e.preventDefault(); shareLink(); }
+  if (ctrl && e.key === 'r')            { e.preventDefault(); clearAll(); }
+  if (e.key === 'd' && !ctrl)           { toggleDrawer(); }
+  if (e.key === 't' && !ctrl)           { toggleTheme(); }
+  if (e.key === 'Escape')               { closeDrawer(); if (compareMode) toggleCompare(); }
+});
+
+/* ── Override selectRow to support compare mode ──────────────── */
+const _origSelectRow = selectRow;
+window.selectRow = function(sy) {
+  if (compareMode) { addToCompare(sy); return; }
+  _origSelectRow(sy);
+};
+</script>
+</body>
+</html>

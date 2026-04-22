@@ -1,0 +1,136 @@
+{
+    "kollur": {
+        "130": {
+            "lat": 17.461000000000002,
+            "lng": 78.24300000000001,
+            "acres": 2.5,
+            "soil": "Hard Rock",
+            "status": "22A Prohibited",
+            "title": "Govt Property",
+            "elev": 554.0,
+            "slope": 3.2,
+            "vector": "North-East",
+            "base_water": 130
+        },
+        "131": {
+            "lat": 17.461100000000002,
+            "lng": 78.2431,
+            "acres": 3.5,
+            "soil": "Red Sandy",
+            "status": "Clear",
+            "title": "Pattadar Verified",
+            "elev": 554.0,
+            "slope": 3.2,
+            "vector": "North-East",
+            "base_water": 131
+        },
+        "132": {
+            "lat": 17.4512,
+            "lng": 78.2612,
+            "acres": 4.5,
+            "soil": "Hard Rock",
+            "status": "Clear",
+            "title": "Pattadar Verified",
+            "elev": 552.0,
+            "slope": 1.5,
+            "vector": "Toward",
+            "base_water": 132
+        },
+        "133": {
+            "lat": 17.4513,
+            "lng": 78.2613,
+            "acres": 5.5,
+            "soil": "Red Sandy",
+            "status": "Clear",
+            "title": "Pattadar Verified",
+            "elev": 553.0,
+            "slope": 2.5,
+            "vector": "Away",
+            "base_water": 133
+        },
+        "134": {
+            "lat": 17.4514,
+            "lng": 78.26140000000001,
+            "acres": 6.5,
+            "soil": "Hard Rock",
+            "status": "Clear",
+            "title": "Pattadar Verified",
+            "elev": 554.0,
+            "slope": 3.5,
+            "vector": "Away",
+            "base_water": 134
+        },
+        "135": {
+            "lat": 17.4615,
+            "lng": 78.2435,
+            "acres": 2.5,
+            "soil": "Red Sandy",
+            "status": "Clear",
+            "title": "Pattadar Verified",
+            "elev": 554.0,
+            "slope": 3.2,
+            "vector": "North-East",
+            "base_water": 135
+        },
+        "136": {
+            "lat": 17.4516,
+            "lng": 78.2616,
+            "acres": 3.5,
+            "soil": "Hard Rock",
+            "status": "Clear",
+            "title": "Pattadar Verified",
+            "elev": 556.0,
+            "slope": 2.5,
+            "vector": "Away",
+            "base_water": 136
+        },
+        "137": {
+            "lat": 17.4517,
+            "lng": 78.2617,
+            "acres": 4.5,
+            "soil": "Red Sandy",
+            "status": "Clear",
+            "title": "Pattadar Verified",
+            "elev": 557.0,
+            "slope": 3.5,
+            "vector": "Away",
+            "base_water": 137
+        },
+        "138": {
+            "lat": 17.4518,
+            "lng": 78.26180000000001,
+            "acres": 5.5,
+            "soil": "Hard Rock",
+            "status": "Clear",
+            "title": "Pattadar Verified",
+            "elev": 558.0,
+            "slope": 1.5,
+            "vector": "Toward",
+            "base_water": 138
+        },
+        "139": {
+            "lat": 17.4519,
+            "lng": 78.26190000000001,
+            "acres": 6.5,
+            "soil": "Red Sandy",
+            "status": "Clear",
+            "title": "Pattadar Verified",
+            "elev": 559.0,
+            "slope": 2.5,
+            "vector": "Away",
+            "base_water": 139
+        },
+        "140": {
+            "lat": 17.451999999999998,
+            "lng": 78.262,
+            "acres": 2.5,
+            "soil": "Hard Rock",
+            "status": "22A Prohibited",
+            "title": "Govt Property",
+            "elev": 550.0,
+            "slope": 3.5,
+            "vector": "Away",
+            "base_water": 140
+        }
+    }
+}
