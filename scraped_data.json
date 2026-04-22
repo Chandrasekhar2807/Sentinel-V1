@@ -1,27 +1,27 @@
 {
     "kollur": {
         "130": {
-            "lat": 17.461000000000002,
-            "lng": 78.24300000000001,
+            "lat": 17.451,
+            "lng": 78.26100000000001,
             "acres": 2.5,
             "soil": "Hard Rock",
             "status": "22A Prohibited",
             "title": "Govt Property",
-            "elev": 554.0,
-            "slope": 3.2,
-            "vector": "North-East",
+            "elev": 550.0,
+            "slope": 2.5,
+            "vector": "Away",
             "base_water": 130
         },
         "131": {
-            "lat": 17.461100000000002,
-            "lng": 78.2431,
+            "lat": 17.4511,
+            "lng": 78.2611,
             "acres": 3.5,
             "soil": "Red Sandy",
             "status": "Clear",
             "title": "Pattadar Verified",
-            "elev": 554.0,
-            "slope": 3.2,
-            "vector": "North-East",
+            "elev": 551.0,
+            "slope": 3.5,
+            "vector": "Away",
             "base_water": 131
         },
         "132": {
@@ -61,15 +61,15 @@
             "base_water": 134
         },
         "135": {
-            "lat": 17.4615,
-            "lng": 78.2435,
+            "lat": 17.4515,
+            "lng": 78.2615,
             "acres": 2.5,
             "soil": "Red Sandy",
             "status": "Clear",
             "title": "Pattadar Verified",
-            "elev": 554.0,
-            "slope": 3.2,
-            "vector": "North-East",
+            "elev": 555.0,
+            "slope": 1.5,
+            "vector": "Toward",
             "base_water": 135
         },
         "136": {

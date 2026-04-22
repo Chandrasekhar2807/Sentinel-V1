@@ -410,6 +410,15 @@ body.light-mode .mp-v { color: #111; }
           <div class="s-val" id="resWater">—</div>
           <div class="s-sub">Liters/day at full occupancy</div>
         </div>
+        <div class="stat-tile">
+          <div class="s-label">Soil Type</div>
+          <div class="s-val" id="resSoil" style="font-size:13px">—</div>
+        </div>
+        <div class="stat-tile">
+          <div class="s-label">Base Water Depth</div>
+          <div class="s-val" id="resBaseWater">—</div>
+          <div class="s-sub">Aquifer depth (ft)</div>
+        </div>
       </div>
 
       <div class="sh">Financial & Structural DNA</div>
@@ -527,6 +536,10 @@ body.light-mode .mp-v { color: #111; }
           <div class="detail-row"><span class="detail-key">Construction Jobs</span><span class="detail-value green" id="d-jobs">—</span></div>
           <div class="detail-row"><span class="detail-key">Water Demand (L/day)</span><span class="detail-value" id="d-water">—</span></div>
           <div class="detail-row"><span class="detail-key">Road Width Req.</span><span class="detail-value" id="d-road">—</span></div>
+          <div class="detail-row"><span class="detail-key">Soil Type</span><span class="detail-value" id="d-soil">—</span></div>
+          <div class="detail-row"><span class="detail-key">Dharani Title</span><span class="detail-value" id="d-title">—</span></div>
+          <div class="detail-row"><span class="detail-key">Drainage Vector</span><span class="detail-value" id="d-vector">—</span></div>
+          <div class="detail-row"><span class="detail-key">Base Water Depth (ft)</span><span class="detail-value" id="d-basewater">—</span></div>
         </div>
 
       </div>
@@ -661,14 +674,23 @@ function calcParcel(parcel, zone) {
        4. Title cleanliness (15 pts) — Clear title = lower dev risk
        5. Water stress      (15 pts) — demand vs. sustainable yield
      ─────────────────────────────────────────────────────────────── */
-  const slopeScore  = parcel.slope < 1 ? 25 : parcel.slope < 2 ? 22 : parcel.slope < 3 ? 18 : parcel.slope < 4 ? 10 : 4;
-  const elevScore   = parcel.elev > 570 ? 25 : parcel.elev > 555 ? 20 : parcel.elev > 548 ? 14 : parcel.elev > 545 ? 6 : 0;
-  const rechargeScore = (parcel.slope < 3) ? 20 : (parcel.slope < 4) ? 12 : 5;
-  const titleScore  = parcel.status === 'Clear' ? 15 : parcel.status === 'Partial' ? 8 : 2;
-  const waterStress = waterKL < 200 ? 15 : waterKL < 400 ? 10 : waterKL < 700 ? 6 : 2;
-  const nssScore    = slopeScore + elevScore + rechargeScore + titleScore + waterStress;
+  /* ── Soil bonus — must be declared before score calculation ─── */
+  const soilBonus = (() => {
+    const s = (parcel.soil || '').toLowerCase();
+    if (s.includes('sandy') || s.includes('alluvial')) return 5;
+    if (s.includes('red'))                              return 3;
+    if (s.includes('black') || s.includes('cotton'))   return 1;
+    if (s.includes('rock')  || s.includes('hard'))     return 0;
+    return 2;
+  })();
 
-  /* Recharge zone classification (CGWB groundwater standard) */
+  const slopeScore    = parcel.slope < 1 ? 25 : parcel.slope < 2 ? 22 : parcel.slope < 3 ? 18 : parcel.slope < 4 ? 10 : 4;
+  const elevScore     = parcel.elev > 570 ? 25 : parcel.elev > 555 ? 20 : parcel.elev > 548 ? 14 : parcel.elev > 545 ? 6 : 0;
+  const rechargeScore = parcel.slope < 3 ? 20 : parcel.slope < 4 ? 12 : 5;
+  const titleScore    = parcel.status === 'Clear' ? 15 : parcel.status === 'Partial' ? 8 : 2;
+  const waterStress   = waterKL < 200 ? 15 : waterKL < 400 ? 10 : waterKL < 700 ? 6 : 2;
+  const nssScore      = Math.min(slopeScore + elevScore + rechargeScore + titleScore + waterStress + soilBonus, 100);
+
   const isRechargeZone = parcel.slope < 3;
   const rechargeGrade  = parcel.slope < 1 ? 'A+ Critical Recharge'
                        : parcel.slope < 2 ? 'A  High Recharge'
@@ -727,6 +749,20 @@ async function runAudit() {
   if (!valid.length) return;
 
   const db = MOCK_DB[currentZone] || {};
+
+  /* ── Normalise Dharani status strings to Sentinel categories ──
+     Dharani uses: "22A Prohibited", "Govt Property", "Pattadar Verified",
+     "Clear", "Encumbered", "Partial" etc.
+     ─────────────────────────────────────────────────────────── */
+  function normalizeStatus(raw) {
+    if (!raw) return 'Unknown';
+    const s = raw.toString().toLowerCase();
+    if (s.includes('22a') || s.includes('prohibited') || s.includes('govt') || s.includes('encumbered')) return 'Encumbered';
+    if (s.includes('clear') || s.includes('pattadar') || s.includes('verified')) return 'Clear';
+    if (s.includes('partial') || s.includes('dispute')) return 'Partial';
+    return raw; // pass through unknown values as-is
+  }
+
   const found = valid.filter(sy => db[sy]);
   const missing = valid.filter(sy => !db[sy]);
 
@@ -750,7 +786,9 @@ async function runAudit() {
 
   for (let i = 0; i < found.length; i++) {
     const sy = found[i];
-    const parcel = db[sy];
+    const _raw   = db[sy];
+    // Normalize so Dharani's status strings map to Sentinel categories
+    const parcel = { ..._raw, status: normalizeStatus(_raw.status) };
     const calc = calcParcel(parcel, currentZone);
 
     // Progress
@@ -813,7 +851,16 @@ function updateTiles(parcel, calc, sy) {
   document.getElementById('resMarginLine').textContent = `Net margin ${calc.margin.toFixed(4)}% after construction`;
   document.getElementById('resJobs').textContent   = '+' + calc.jobs.toLocaleString();
   document.getElementById('resWater').textContent  = calc.waterKL.toFixed(4) + ' KL/day';
-  document.getElementById('resHydro').textContent  = calc.rechargeGrade;
+  document.getElementById('resHydro').textContent    = calc.rechargeGrade;
+  const soilEl = document.getElementById('resSoil');
+  if (soilEl) soilEl.textContent = parcel.soil || '—';
+  const bwEl = document.getElementById('resBaseWater');
+  if (bwEl) {
+    if (parcel.base_water) {
+      bwEl.textContent = parcel.base_water + ' ft';
+      bwEl.style.color = parcel.base_water < 30 ? 'var(--red)' : parcel.base_water < 80 ? 'var(--amber)' : 'var(--green)';
+    } else bwEl.textContent = '—';
+  }
   const nssEl = document.getElementById('resNSS');
   if (nssEl) {
     nssEl.textContent = calc.nssScore + ' / 100';
@@ -907,6 +954,8 @@ function addMapMarker(sy, parcel, calc) {
     <div class="mp-row"><span class="mp-k">GDV</span><span class="mp-v" style="color:#00E676">₹${calc.gdv.toFixed(4)} Cr</span></div>
     <div class="mp-row"><span class="mp-k">Floors</span><span class="mp-v">${calc.floors}F</span></div>
     <div class="mp-row"><span class="mp-k">Elevation</span><span class="mp-v">${parcel.elev}m</span></div>
+    ${parcel.soil ? `<div class="mp-row"><span class="mp-k">Soil</span><span class="mp-v">${parcel.soil}</span></div>` : ''}
+    ${parcel.base_water ? `<div class="mp-row"><span class="mp-k">Water Depth</span><span class="mp-v" style="color:${parcel.base_water<30?'#FF1744':parcel.base_water<80?'#FFBF00':'#00E676'}">${parcel.base_water} ft</span></div>` : ''}
   </div>`;
 
   circle.bindPopup(popupHtml);
@@ -950,7 +999,15 @@ function openDetailDrawer(entry) {
   document.getElementById('d-jobs').textContent  = '+' + calc.jobs.toLocaleString();
   document.getElementById('d-water').textContent = calc.waterKL.toFixed(4) + ' KL/day';
   document.getElementById('d-nss').textContent  = calc.nssScore + ' / 100 — ' + (calc.nssScore >= 70 ? 'GREEN ZONE' : calc.nssScore >= 45 ? 'CAUTION' : 'HIGH RISK');
-  document.getElementById('d-road').textContent  = parcel.roadWidth + ' ft min.';
+  document.getElementById('d-road').textContent      = parcel.roadWidth ? parcel.roadWidth + ' ft min.' : '—';
+  document.getElementById('d-soil').textContent      = parcel.soil      || '—';
+  document.getElementById('d-title').textContent     = parcel.title     || parcel.status || '—';
+  document.getElementById('d-vector').textContent    = parcel.vector    || '—';
+  const bw = document.getElementById('d-basewater');
+  if (parcel.base_water) {
+    bw.textContent = parcel.base_water + ' ft';
+    bw.style.color = parcel.base_water < 30 ? 'var(--red)' : parcel.base_water < 80 ? 'var(--amber)' : 'var(--green)';
+  } else { bw.textContent = '—'; }
 
   // Sensitivity bars
   const maxGDV = Math.max(...calc.sensitivity.map(s => s.gdv));
@@ -1212,7 +1269,7 @@ function clearAll() {
   markerGroup.clearLayers();
   closeDrawer();
 
-  ['resGFA','resHeight','resUnits','resFSI','resJobs','resWater','resHydro'].forEach(id => {
+  ['resGFA','resHeight','resUnits','resFSI','resJobs','resWater','resHydro','resSoil','resBaseWater','resNSS'].forEach(id => {
     document.getElementById(id).textContent = '—';
   });
   document.getElementById('resGDV').textContent = '₹0 Cr';
@@ -1275,18 +1332,19 @@ function toggleTheme() {
 /* ── 12. CSV EXPORT ───────────────────────────────────────────── */
 function exportCSV() {
   if (!auditResults.length) { toast('Run an audit before exporting', 'info'); return; }
-  const headers = ['Survey','Zone','Acres','UsableAcres','Status','Owner','Patta','FSI',
+  const headers = ['Survey','Zone','Acres','UsableAcres','Status','DharaniTitle','Owner','Patta','FSI',
     'GFA_LakhSft','Floors','Units','GDV_Cr','ConCost_Cr','Margin_pct',
     'Jobs','WaterDemand_KLDay','EnvScore','RechargeGrade','FTL_Status',
-    'Elevation_m','Slope_pct'];
+    'Elevation_m','Slope_pct','SoilType','DrainageVector','BaseWaterDepth_ft'];
   const rows = auditResults.map(r => [
     r.sy, ZONE_CONFIG[r.zone].label, r.parcel.acres, r.calc.usable,
-    r.parcel.status, r.parcel.owner || '', r.parcel.patta || '',
+    r.parcel.status, r.parcel.title || r.parcel.status, r.parcel.owner || '', r.parcel.patta || '',
     r.calc.fsi, (r.calc.gfa/100000).toFixed(4), r.calc.floors, r.calc.units,
     r.calc.gdv.toFixed(4), r.calc.conCost.toFixed(4), r.calc.margin.toFixed(4),
     r.calc.jobs, r.calc.waterKL.toFixed(4),
     r.calc.nssScore, r.calc.rechargeGrade.trim(), r.calc.ftlStatus,
-    r.parcel.elev, r.parcel.slope
+    r.parcel.elev, r.parcel.slope,
+    r.parcel.soil || '', r.parcel.vector || '', r.parcel.base_water || ''
   ].join(','));
   const csv = [headers.join(','), ...rows].join('\n');
   const blob = new Blob([csv], { type: 'text/csv' });
