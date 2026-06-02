@@ -276,7 +276,6 @@ body.light-mode .map-popup { color: #111; }
 body.light-mode .mp-k { color: #999; }
 body.light-mode .mp-v { color: #111; }
 
-id { grid-template-columns: 1fr 1fr; }
 /* ─── MOBILE RESPONSIVE ──────────────────────────────────────────── */
 @media (max-width: 900px) {
   body { flex-direction: column; }
@@ -309,9 +308,6 @@ id { grid-template-columns: 1fr 1fr; }
 </head>
 <body>
 
-<!-- ╔════════════════════════════════════════════════════════════════╗ -->
-<!-- ║                       TOP BAR                                  ║ -->
-<!-- ╚════════════════════════════════════════════════════════════════╝ -->
 <div id="topbar">
   <div class="brand">
     <div class="brand-dot"></div>
@@ -334,16 +330,11 @@ id { grid-template-columns: 1fr 1fr; }
   </div>
 </div>
 
-<!-- ╔════════════════════════════════════════════════════════════════╗ -->
-<!-- ║                       MAIN LAYOUT                              ║ -->
-<!-- ╚════════════════════════════════════════════════════════════════╝ -->
 <div id="main">
 
-  <!-- ── LEFT SIDEBAR ─────────────────────────────────────────────── -->
   <div id="sidebar">
     <div id="sidebar-scroll">
 
-      <!-- Audit Input -->
       <div class="audit-box">
         <label>Target Survey Queue</label>
         <div class="survey-input-wrap">
@@ -360,7 +351,6 @@ id { grid-template-columns: 1fr 1fr; }
         </button>
       </div>
 
-      <!-- Portfolio Summary (shown after audit) -->
       <div id="portfolioCard" style="display:none">
         <div class="sh">Portfolio Summary</div>
         <div class="portfolio-card">
@@ -383,7 +373,6 @@ id { grid-template-columns: 1fr 1fr; }
         </div>
       </div>
 
-      <!-- Stats tiles -->
       <div class="sh">Sustainability & Policy</div>
       <div class="stat-grid">
         <div class="stat-tile">
@@ -448,7 +437,6 @@ id { grid-template-columns: 1fr 1fr; }
         </div>
       </div>
 
-      <!-- Results Table -->
       <div class="sh">Audit Results <span id="resultCount" style="color:var(--muted);font-weight:400;font-size:9px"></span></div>
       <div style="display:flex;gap:8px;align-items:center;margin-bottom:10px">
         <button type="button" class="btn-sm" onclick="toggleCompare()" id="compareBtn" title="Select 2 parcels then compare">⇄ Compare</button>
@@ -462,13 +450,11 @@ id { grid-template-columns: 1fr 1fr; }
 
     </div>
 
-    <!-- Log Console -->
     <div id="log-panel">
       <div class="log-line">[ SENTINEL ENGINE v2.0 READY ]</div>
     </div>
   </div>
 
-  <!-- ── MAP AREA ──────────────────────────────────────────────────── -->
   <div id="map-wrap">
     <div id="map"></div>
 
@@ -484,7 +470,6 @@ id { grid-template-columns: 1fr 1fr; }
       <div class="map-btn" title="Toggle GeoJSON polygons" onclick="toggleGeoJSON()" id="geoBtn">⬡</div>
     </div>
 
-    <!-- Detail Drawer (slides in from right) -->
     <div id="detail-drawer">
       <div id="detail-header">
         <div>
@@ -547,23 +532,14 @@ id { grid-template-columns: 1fr 1fr; }
   </div>
 </div>
 
-<!-- Toast Container -->
 <div id="toast-container"></div>
 
-<!-- ═══════════════════════════════════════════════════════════════════ -->
-<!-- JAVASCRIPT ENGINE                                                   -->
-<!-- ═══════════════════════════════════════════════════════════════════ -->
 <script>
 'use strict';
 
 /* ──────────────────────────────────────────────────────────
    1. MOCK DATABASE  (replace with scraped_data.json fetch)
    ────────────────────────────────────────────────────────── */
-/* ── LIVE DATABASE — loaded from scraped_data.json ─────────────────
-   Structure expected:
-   { "kollur": { "131": { lat, lng, acres, slope, elev, status,
-                           owner, patta, roadWidth }, ... }, ... }
-   ─────────────────────────────────────────────────────────────────── */
 let MOCK_DB = {};
 let DB_READY = false;
 
@@ -572,7 +548,8 @@ async function syncDatabase() {
   try {
     statusEl.textContent = '⏳ SYNCING DB...';
     statusEl.style.color = 'var(--amber)';
-    const response = await fetch('scraped_data.json');
+    // 🚨 V2 PIPELINE UPDATE: Point to the audited database
+    const response = await fetch('scraped_data_audited.json'); 
     if (!response.ok) throw new Error(`HTTP ${response.status}`);
     MOCK_DB = await response.json();
     DB_READY = true;
@@ -580,15 +557,13 @@ async function syncDatabase() {
     const parcelCount = Object.values(MOCK_DB).reduce((s,z) => s + Object.keys(z).length, 0);
     statusEl.textContent = `✓ LIVE · ${parcelCount} parcels`;
     statusEl.style.color = 'var(--green)';
-    addLog(`✓ LIVE DATABASE SYNCED — ${parcelCount} parcels across ${zoneCount} zones`, 'new');
+    addLog(`✓ V2 DATABASE SYNCED — ${parcelCount} parcels across ${zoneCount} zones`, 'new');
   } catch (e) {
-    /* Graceful offline fallback — keeps app usable without the JSON file */
     MOCK_DB = {};
     DB_READY = false;
     statusEl.textContent = '⚠ OFFLINE MODE';
     statusEl.style.color = 'var(--red)';
-    addLog('⚠ SYNC ERROR: scraped_data.json not found — check file path', 'err');
-    addLog('  Place index.html and scraped_data.json in the same folder', 'err');
+    addLog('⚠ SYNC ERROR: scraped_data_audited.json not found', 'err');
   }
 }
 syncDatabase();
@@ -659,22 +634,9 @@ function calcParcel(parcel, zone) {
   const floors  = Math.ceil(gfa / (usable * 43560 * 0.28));
   const jobs    = Math.round((gfa / 1000) * 1.5);
 
-  /* ── Water Demand Formula ───────────────────────────────────
-     Water Demand = Units × 5 residents × 135 L/person/day
-     (Bureau of Indian Standards IS:1172 domestic consumption norm)
-     ─────────────────────────────────────────────────────────────── */
-  const water = parseFloat((units * 5 * 135).toFixed(4));  // litres/day
-  const waterKL = parseFloat((water / 1000).toFixed(4));    // KL/day
+  const water = parseFloat((units * 5 * 135).toFixed(4));
+  const waterKL = parseFloat((water / 1000).toFixed(4));
 
-  /* ── Env. Sustainability Score (0–100) ──────────────────────────
-     Weighted composite of 5 environmental indicators:
-       1. Slope factor      (25 pts) — flatter = better recharge
-       2. Elevation factor  (25 pts) — higher = safer from FTL zone
-       3. Recharge zone     (20 pts) — slope < 3% qualifies
-       4. Title cleanliness (15 pts) — Clear title = lower dev risk
-       5. Water stress      (15 pts) — demand vs. sustainable yield
-     ─────────────────────────────────────────────────────────────── */
-  /* ── Soil bonus — must be declared before score calculation ─── */
   const soilBonus = (() => {
     const s = (parcel.soil || '').toLowerCase();
     if (s.includes('sandy') || s.includes('alluvial')) return 5;
@@ -698,12 +660,10 @@ function calcParcel(parcel, zone) {
                        : parcel.slope < 4 ? 'C  Low Recharge'
                        :                    'D  Runoff Dominant';
 
-  /* ── FTL Buffer Status ──────────────────────────────────────── */
   const ftlStatus = parcel.elev < 545 ? 'CRITICAL'
                   : parcel.elev < 548 ? 'WARNING'
                   : 'SAFE';
 
-  /* ── Sensitivity Scenarios ──────────────────────────────────── */
   const scenarios = [
     { label: 'Bear -20%', rate: cfg.rate * 0.80 },
     { label: 'Base',      rate: cfg.rate         },
@@ -731,7 +691,6 @@ async function runAudit() {
   const raw = document.getElementById('surveyInput').value;
   const input = document.getElementById('surveyInput');
 
-  // Validate input
   const list = raw.split(',').map(s => s.trim()).filter(s => s !== '');
   if (!list.length) {
     input.classList.add('error');
@@ -740,7 +699,6 @@ async function runAudit() {
     return;
   }
 
-  // Validate each entry
   const valid = list.filter(s => /^\d+$/.test(s));
   const invalid = list.filter(s => !/^\d+$/.test(s));
   if (invalid.length) {
@@ -750,17 +708,17 @@ async function runAudit() {
 
   const db = MOCK_DB[currentZone] || {};
 
-  /* ── Normalise Dharani status strings to Sentinel categories ──
-     Dharani uses: "22A Prohibited", "Govt Property", "Pattadar Verified",
-     "Clear", "Encumbered", "Partial" etc.
-     ─────────────────────────────────────────────────────────── */
   function normalizeStatus(raw) {
     if (!raw) return 'Unknown';
     const s = raw.toString().toLowerCase();
+    
+    // 🚨 V2 UPDATE: Catch the FTL Zone Ghost Assets first!
+    if (s.includes('critical: ftl zone') || s.includes('high risk')) return '🚨 CRITICAL: FTL ZONE';
+    
     if (s.includes('22a') || s.includes('prohibited') || s.includes('govt') || s.includes('encumbered')) return 'Encumbered';
     if (s.includes('clear') || s.includes('pattadar') || s.includes('verified')) return 'Clear';
     if (s.includes('partial') || s.includes('dispute')) return 'Partial';
-    return raw; // pass through unknown values as-is
+    return raw; 
   }
 
   const found = valid.filter(sy => db[sy]);
@@ -774,7 +732,6 @@ async function runAudit() {
     toast(`Not in DB: Sy ${missing.join(', ')} — skipped`, 'info');
   }
 
-  // Start scan
   setLoading(true);
   auditResults = [];
   markerGroup.clearLayers();
@@ -787,45 +744,33 @@ async function runAudit() {
   for (let i = 0; i < found.length; i++) {
     const sy = found[i];
     const _raw   = db[sy];
-    // Normalize so Dharani's status strings map to Sentinel categories
     const parcel = { ..._raw, status: normalizeStatus(_raw.status) };
     const calc = calcParcel(parcel, currentZone);
 
-    // Progress
     const pct = Math.round(((i + 1) / found.length) * 100);
     document.getElementById('progFill').style.width = pct + '%';
     document.getElementById('prog-count').textContent = `${i+1}/${found.length}`;
 
-    // Update stat tiles
     updateTiles(parcel, calc, sy);
 
-    // Accumulate portfolio
     gGDV += calc.gdv; gAcres += calc.usable;
     if (parcel.status === 'Clear') gClear++;
     gMargin += calc.margin;
 
-    // Store result
     auditResults.push({ sy, parcel, calc, zone: currentZone });
 
-    // Map marker
     addMapMarker(sy, parcel, calc);
 
-    // Fly to
     map.flyTo([parcel.lat, parcel.lng], 16, { duration: 0.8 });
 
-    // Log
     addLog(`> Sy ${sy} | ${ZONE_CONFIG[currentZone].label} | GDV ₹${calc.gdv.toFixed(4)}Cr | Margin ${calc.margin.toFixed(4)}% | ${parcel.status}`, 'new');
 
     await sleep(900);
   }
 
-  // Portfolio summary
   updatePortfolio(gGDV, gAcres, gClear, gMargin / found.length);
-
-  // Results table
   renderTable();
 
-  // Zoom out to see all
   if (found.length > 1) {
     const group = L.featureGroup(markerGroup.getLayers());
     map.fitBounds(group.getBounds().pad(0.2), { duration: 1 });
@@ -868,12 +813,7 @@ function updateTiles(parcel, calc, sy) {
   }
 
   const warn = document.getElementById('resWarning');
-  /* ── Smart Buffer Analysis ─────────────────────────────────────
-     < 545m → inside catchment / FTL zone    → CRITICAL + blue ring
-     < 548m → edge of buffer                 → WARNING
-     Encumbered (any elev)                   → TITLE WARNING
-     ─────────────────────────────────────────────────────────── */
-  if (parcel.elev < 545) {
+  if (parcel.status === '🚨 CRITICAL: FTL ZONE' || parcel.elev < 545) {
     warn.textContent = '⚠ CRITICAL: LAKE BUFFER / FTL ZONE';
     warn.className = 'badge badge-risk';
     L.circle([parcel.lat, parcel.lng], {
@@ -934,7 +874,19 @@ function selectRow(sy) {
    6. MAP MARKERS
    ────────────────────────────────────────────────────────── */
 function addMapMarker(sy, parcel, calc) {
-  const color = parcel.status === 'Clear' ? '#00E676' : parcel.status === 'Encumbered' ? '#FF1744' : '#FFBF00';
+  // 🚨 V2 THREAT VISUALIZER LOGIC
+  let color = '#FFBF00'; // Default: Partial/Warning (Amber)
+  let popupAlert = '';
+  
+  if (parcel.status === 'Clear') {
+      color = '#00E676'; // Safe (Green)
+  } else if (parcel.status === 'Encumbered') {
+      color = '#FF1744'; // Legal Danger (Red)
+  } else if (parcel.status === '🚨 CRITICAL: FTL ZONE') {
+      color = '#FF0000'; // Ghost Asset (Pure Red)
+      popupAlert = `<div style="background:#FF0000;color:#fff;font-weight:900;text-align:center;padding:4px;margin-bottom:6px;border-radius:4px;font-size:10px;letter-spacing:1px;">⚠️ FTL LAKE BREACH</div>`;
+  }
+
   const radiusM = 60 + (calc.floors * 4);
 
   const circle = L.circle([parcel.lat, parcel.lng], {
@@ -948,14 +900,13 @@ function addMapMarker(sy, parcel, calc) {
   const marker = L.marker([parcel.lat, parcel.lng], { icon: divIcon }).addTo(markerGroup);
 
   const popupHtml = `<div class="map-popup">
+    ${popupAlert}
     <div class="mp-sy">Survey ${sy}</div>
     <div class="mp-row"><span class="mp-k">Status</span><span class="mp-v" style="color:${color}">${parcel.status}</span></div>
     <div class="mp-row"><span class="mp-k">Acres</span><span class="mp-v">${parcel.acres}</span></div>
     <div class="mp-row"><span class="mp-k">GDV</span><span class="mp-v" style="color:#00E676">₹${calc.gdv.toFixed(4)} Cr</span></div>
     <div class="mp-row"><span class="mp-k">Floors</span><span class="mp-v">${calc.floors}F</span></div>
     <div class="mp-row"><span class="mp-k">Elevation</span><span class="mp-v">${parcel.elev}m</span></div>
-    ${parcel.soil ? `<div class="mp-row"><span class="mp-k">Soil</span><span class="mp-v">${parcel.soil}</span></div>` : ''}
-    ${parcel.base_water ? `<div class="mp-row"><span class="mp-k">Water Depth</span><span class="mp-v" style="color:${parcel.base_water<30?'#FF1744':parcel.base_water<80?'#FFBF00':'#00E676'}">${parcel.base_water} ft</span></div>` : ''}
   </div>`;
 
   circle.bindPopup(popupHtml);
@@ -979,12 +930,13 @@ function openDetailDrawer(entry) {
 
   const statusEl = document.getElementById('d-status');
   statusEl.textContent = parcel.status;
-  statusEl.className = 'detail-value ' + (parcel.status === 'Clear' ? 'green' : parcel.status === 'Encumbered' ? 'red' : 'amber');
+  statusEl.className = 'detail-value ' + (parcel.status === 'Clear' ? 'green' : parcel.status === 'Encumbered' ? 'red' : parcel.status === '🚨 CRITICAL: FTL ZONE' ? 'red' : 'amber');
 
   document.getElementById('d-elev').textContent  = parcel.elev + ' m';
   document.getElementById('d-slope').textContent = parcel.slope + '%';
-  document.getElementById('d-ftl').textContent   = parcel.elev < 545 ? '⚠ CRITICAL — FTL ZONE' : parcel.elev < 548 ? '⚠ BUFFER EDGE RISK' : '✓ Safe';
-  document.getElementById('d-ftl').className     = 'detail-value ' + (parcel.elev < 545 ? 'red' : parcel.elev < 548 ? 'amber' : 'green');
+  const isFTL = (parcel.status === '🚨 CRITICAL: FTL ZONE' || parcel.elev < 545);
+  document.getElementById('d-ftl').textContent   = isFTL ? '⚠ CRITICAL — FTL ZONE' : parcel.elev < 548 ? '⚠ BUFFER EDGE RISK' : '✓ Safe';
+  document.getElementById('d-ftl').className     = 'detail-value ' + (isFTL ? 'red' : parcel.elev < 548 ? 'amber' : 'green');
   document.getElementById('d-hydro').textContent = calc.rechargeGrade;
   document.getElementById('d-recharge').textContent = calc.isRechargeZone ? '✓ YES — Protected Zone' : '✗ No';
   document.getElementById('d-recharge').className   = 'detail-value ' + (calc.isRechargeZone ? 'green' : 'red');
@@ -1009,11 +961,9 @@ function openDetailDrawer(entry) {
     bw.style.color = parcel.base_water < 30 ? 'var(--red)' : parcel.base_water < 80 ? 'var(--amber)' : 'var(--green)';
   } else { bw.textContent = '—'; }
 
-  // Sensitivity bars
   const maxGDV = Math.max(...calc.sensitivity.map(s => s.gdv));
   document.getElementById('sensitivity-bars').innerHTML = calc.sensitivity.map(s => {
     const pct = (s.gdv / maxGDV * 100).toFixed(0);
-    const isBase = s.label === 'Base';
     const color = s.label.startsWith('Bear') ? '#FF1744' : s.label.startsWith('Bull') ? '#00E676' : '#FFBF00';
     return `<div class="sensitivity-bar">
       <div class="sens-label">
@@ -1060,10 +1010,9 @@ function exportReport() {
                     : avgScore >= 45 ? 'AMBER — Moderate Risk, Mitigation Needed'
                     :                'RED — High Risk, Review Recommended';
 
-  /* ── Per-parcel rows ─────────────────────────────────────── */
   const tableRows = auditResults.map(r => {
     const flagStyle = r.parcel.elev < 545 ? 'background:#fff0f0' : r.parcel.elev < 548 ? 'background:#fffbe6' : '';
-    const statusColor = r.parcel.status === 'Clear' ? '#007700' : r.parcel.status === 'Encumbered' ? '#cc0000' : '#b85a00';
+    const statusColor = r.parcel.status === 'Clear' ? '#007700' : r.parcel.status.includes('CRITICAL') ? '#cc0000' : r.parcel.status === 'Encumbered' ? '#cc0000' : '#b85a00';
     const nssC = r.calc.nssScore >= 70 ? '#007700' : r.calc.nssScore >= 45 ? '#b85a00' : '#cc0000';
     return `<tr style="${flagStyle}">
       <td style="padding:7px 10px;border-bottom:1px solid #eee;font-family:monospace;font-weight:700;font-size:12px">Sy ${r.sy}</td>
@@ -1079,7 +1028,6 @@ function exportReport() {
     </tr>`;
   }).join('');
 
-  /* ── Sensitivity table rows ──────────────────────────────── */
   const sensLabels = ['Bear -20%', 'Base', 'Bull +15%', 'Bull +30%'];
   const sensColors = ['#cc0000', '#b85a00', '#007700', '#005500'];
   const sensRows = sensLabels.map((lbl, i) => {
@@ -1099,7 +1047,6 @@ function exportReport() {
   const html_report = `
   <div id="pdf-export-root" style="font-family:Arial,sans-serif;color:#111;max-width:980px;padding:36px 40px">
 
-    <!-- ══ HEADER ══════════════════════════════════════════════════ -->
     <div style="display:flex;justify-content:space-between;align-items:flex-end;padding-bottom:18px;border-bottom:4px solid #FFBF00;margin-bottom:28px">
       <div>
         <div style="font-size:30px;font-weight:900;letter-spacing:-1px;line-height:1">SENTINEL</div>
@@ -1114,7 +1061,6 @@ function exportReport() {
       </div>
     </div>
 
-    <!-- ══ KPI SUMMARY TILES ════════════════════════════════════════ -->
     <div style="display:grid;grid-template-columns:repeat(6,1fr);gap:12px;margin-bottom:28px">
       ${[
         ['Portfolio GDV', '₹' + totalGDV.toFixed(4) + ' Cr', '#007700'],
@@ -1129,7 +1075,6 @@ function exportReport() {
       </div>`).join('')}
     </div>
 
-    <!-- ══ SECTION 1: Env. SUSTAINABILITY WATCHDOG ══════════════════ -->
     <div style="margin-bottom:28px">
       <div style="font-size:13px;font-weight:900;text-transform:uppercase;letter-spacing:2px;color:#333;border-left:4px solid #FFBF00;padding-left:12px;margin-bottom:16px">
         Section 1 · Env. Sustainability Watchdog
@@ -1159,7 +1104,6 @@ function exportReport() {
       </div>
     </div>
 
-    <!-- ══ SECTION 2: COMMUNITY IMPACT ═════════════════════════════ -->
     <div style="margin-bottom:28px">
       <div style="font-size:13px;font-weight:900;text-transform:uppercase;letter-spacing:2px;color:#333;border-left:4px solid #FFBF00;padding-left:12px;margin-bottom:16px">
         Section 2 · Community Impact Analysis
@@ -1187,7 +1131,6 @@ function exportReport() {
       </div>
     </div>
 
-    <!-- ══ SECTION 3: SENSITIVITY ANALYSIS ═════════════════════════ -->
     <div style="margin-bottom:28px">
       <div style="font-size:13px;font-weight:900;text-transform:uppercase;letter-spacing:2px;color:#333;border-left:4px solid #FFBF00;padding-left:12px;margin-bottom:16px">
         Section 3 · Market Sensitivity Analysis (Bear / Base / Bull)
@@ -1208,7 +1151,6 @@ function exportReport() {
       </div>
     </div>
 
-    <!-- ══ SECTION 4: PARCEL DNA TABLE ═════════════════════════════ -->
     <div style="margin-bottom:28px">
       <div style="font-size:13px;font-weight:900;text-transform:uppercase;letter-spacing:2px;color:#333;border-left:4px solid #FFBF00;padding-left:12px;margin-bottom:16px">
         Section 4 · Full Parcel Audit Table
@@ -1237,7 +1179,6 @@ function exportReport() {
       </div>
     </div>
 
-    <!-- ══ FOOTER ═══════════════════════════════════════════════════ -->
     <div style="border-top:1px solid #ddd;padding-top:14px;font-size:9px;color:#aaa;line-height:1.6">
       <b>SENTINEL v2.0</b> · Land Intelligence Platform · Generated ${genDate} · Zone: ${zone}<br>
       Disclaimer: Financial projections are model estimates based on current market data and FSI regulations. All figures are subject to full legal, environmental, and financial due diligence before any transaction. This report is prepared for internal planning purposes only.<br>
@@ -1367,7 +1308,6 @@ function shareLink() {
     prompt('Copy this link:', url);
   }
 }
-/* Auto-load from URL params on page load */
 window.addEventListener('load', () => {
   try {
     const p = new URLSearchParams(window.location.search);
@@ -1452,12 +1392,12 @@ function renderCompare() {
     ['Usable Ac',   a.calc.usable.toFixed(4),                  b.calc.usable.toFixed(4),         'higher'],
     ['GDV (Cr)',    '₹'+a.calc.gdv.toFixed(4),                 '₹'+b.calc.gdv.toFixed(4),        'higher'],
     ['Margin %',    a.calc.margin.toFixed(4)+'%',              b.calc.margin.toFixed(4)+'%',     'higher'],
-    ['Floors',      a.calc.floors,                              b.calc.floors,                    'higher'],
-    ['Units',       a.calc.units.toLocaleString(),              b.calc.units.toLocaleString(),    'higher'],
+    ['Floors',      a.calc.floors,                             b.calc.floors,                    'higher'],
+    ['Units',       a.calc.units.toLocaleString(),             b.calc.units.toLocaleString(),    'higher'],
     ['Env Score',   a.calc.nssScore+'/100',                    b.calc.nssScore+'/100',           'higher'],
     ['Water (KL)',  a.calc.waterKL.toFixed(4),                 b.calc.waterKL.toFixed(4),        'lower'],
-    ['FTL Status',  a.calc.ftlStatus,                           b.calc.ftlStatus,                 'safe'],
-    ['Title',       a.parcel.status,                            b.parcel.status,                  'clear'],
+    ['FTL Status',  a.calc.ftlStatus,                          b.calc.ftlStatus,                 'safe'],
+    ['Title',       a.parcel.status,                           b.parcel.status,                  'clear'],
   ];
   const rows = metrics.map(([label, va, vb, prefer]) => {
     const na = parseFloat(va) || 0;
@@ -1487,7 +1427,7 @@ function renderCompare() {
   </div>`;
 }
 
-/* ── 17. GEOJSON POLYGON TOGGLE (stub — loads from geojson/ folder) */
+/* ── 17. GEOJSON POLYGON TOGGLE ──────────────────────────────── */
 let geoLayer = null;
 let geoVisible = false;
 function toggleGeoJSON() {
@@ -1497,7 +1437,6 @@ function toggleGeoJSON() {
     btn.classList.remove('active-layer');
     toast('Plot polygons hidden', 'info'); return;
   }
-  // Attempt to load from geojson/<zone>.geojson
   fetch(`geojson/${currentZone}.geojson`)
     .then(r => { if (!r.ok) throw new Error('No GeoJSON file'); return r.json(); })
     .then(data => {
@@ -1531,11 +1470,10 @@ function locateMe() {
   }, () => toast('Location access denied', 'error'));
 }
 
-/* ── 19. DEBOUNCE HELPER (rate limiting) ─────────────────────── */
+/* ── 19. DEBOUNCE HELPER ─────────────────────────────────────── */
 function debounce(fn, ms) {
   let t; return (...args) => { clearTimeout(t); t = setTimeout(() => fn(...args), ms); };
 }
-/* Debounced audit trigger for real-time input (500ms delay) */
 document.addEventListener('DOMContentLoaded', () => {
   const inp = document.getElementById('surveyInput');
   if (inp) inp.addEventListener('keydown', e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); runAudit(); } });
@@ -1554,7 +1492,6 @@ document.addEventListener('keydown', e => {
   if (e.key === 'Escape')               { closeDrawer(); if (compareMode) toggleCompare(); }
 });
 
-/* ── Override selectRow to support compare mode ──────────────── */
 const _origSelectRow = selectRow;
 window.selectRow = function(sy) {
   if (compareMode) { addToCompare(sy); return; }
