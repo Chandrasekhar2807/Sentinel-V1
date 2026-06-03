@@ -548,7 +548,6 @@ async function syncDatabase() {
   try {
     statusEl.textContent = '⏳ SYNCING DB...';
     statusEl.style.color = 'var(--amber)';
-    // 🚨 V2 PIPELINE UPDATE: Point to the audited database
     const response = await fetch('scraped_data_audited.json'); 
     if (!response.ok) throw new Error(`HTTP ${response.status}`);
     MOCK_DB = await response.json();
@@ -640,7 +639,7 @@ function calcParcel(parcel, zone) {
   const soilBonus = (() => {
     const s = (parcel.soil || '').toLowerCase();
     if (s.includes('sandy') || s.includes('alluvial')) return 5;
-    if (s.includes('red'))                              return 3;
+    if (s.includes('red'))                             return 3;
     if (s.includes('black') || s.includes('cotton'))   return 1;
     if (s.includes('rock')  || s.includes('hard'))     return 0;
     return 2;
@@ -712,9 +711,7 @@ async function runAudit() {
     if (!raw) return 'Unknown';
     const s = raw.toString().toLowerCase();
     
-    // 🚨 V2 UPDATE: Catch the FTL Zone Ghost Assets first!
     if (s.includes('critical: ftl zone') || s.includes('high risk')) return '🚨 CRITICAL: FTL ZONE';
-    
     if (s.includes('22a') || s.includes('prohibited') || s.includes('govt') || s.includes('encumbered')) return 'Encumbered';
     if (s.includes('clear') || s.includes('pattadar') || s.includes('verified')) return 'Clear';
     if (s.includes('partial') || s.includes('dispute')) return 'Partial';
@@ -744,7 +741,18 @@ async function runAudit() {
   for (let i = 0; i < found.length; i++) {
     const sy = found[i];
     const _raw   = db[sy];
-    const parcel = { ..._raw, status: normalizeStatus(_raw.status) };
+    let parcel = { ..._raw, status: normalizeStatus(_raw.status) };
+
+    // ==========================================
+    // 🚨 THE UNIFIED TRUTH ENGINE 
+    // ==========================================
+    // If elevation is strictly below 545m, force the FTL warning.
+    if (parcel.elev < 545) {
+        parcel.status = '🚨 CRITICAL: FTL ZONE';
+    } else if (parcel.status === '22A Prohibited') {
+        parcel.status = 'Encumbered';
+    }
+
     const calc = calcParcel(parcel, currentZone);
 
     const pct = Math.round(((i + 1) / found.length) * 100);
@@ -796,9 +804,11 @@ function updateTiles(parcel, calc, sy) {
   document.getElementById('resMarginLine').textContent = `Net margin ${calc.margin.toFixed(4)}% after construction`;
   document.getElementById('resJobs').textContent   = '+' + calc.jobs.toLocaleString();
   document.getElementById('resWater').textContent  = calc.waterKL.toFixed(4) + ' KL/day';
-  document.getElementById('resHydro').textContent    = calc.rechargeGrade;
+  document.getElementById('resHydro').textContent  = calc.rechargeGrade;
+  
   const soilEl = document.getElementById('resSoil');
   if (soilEl) soilEl.textContent = parcel.soil || '—';
+  
   const bwEl = document.getElementById('resBaseWater');
   if (bwEl) {
     if (parcel.base_water) {
@@ -816,6 +826,7 @@ function updateTiles(parcel, calc, sy) {
   if (parcel.status === '🚨 CRITICAL: FTL ZONE' || parcel.elev < 545) {
     warn.textContent = '⚠ CRITICAL: LAKE BUFFER / FTL ZONE';
     warn.className = 'badge badge-risk';
+    // Draw the 100m warning radius ring
     L.circle([parcel.lat, parcel.lng], {
       radius: 100, color: '#448AFF', fillColor: '#448AFF',
       fillOpacity: 0.18, weight: 2, dashArray: '6 4'
@@ -848,7 +859,7 @@ function renderTable() {
     return;
   }
   const rows = auditResults.map(r => {
-    const dotCls = r.parcel.status === 'Clear' ? 'dot-clear' : r.parcel.status === 'Encumbered' ? 'dot-encumbered' : 'dot-partial';
+    const dotCls = r.parcel.status === 'Clear' ? 'dot-clear' : (r.parcel.status === 'Encumbered' || r.parcel.status === '🚨 CRITICAL: FTL ZONE') ? 'dot-encumbered' : 'dot-partial';
     return `<tr onclick="selectRow('${r.sy}')" id="row-${r.sy}" class="${activeRowSY === r.sy ? 'active-row' : ''}">
       <td><span class="sy-badge">${r.sy}</span></td>
       <td>${r.parcel.acres.toFixed(4)} ac</td>
@@ -871,10 +882,9 @@ function selectRow(sy) {
 }
 
 /* ──────────────────────────────────────────────────────────
-   6. MAP MARKERS
+   6. MAP MARKERS (Upgraded to Polygons)
    ────────────────────────────────────────────────────────── */
 function addMapMarker(sy, parcel, calc) {
-  // 🚨 V2 THREAT VISUALIZER LOGIC
   let color = '#FFBF00'; // Default: Partial/Warning (Amber)
   let popupAlert = '';
   
@@ -887,10 +897,18 @@ function addMapMarker(sy, parcel, calc) {
       popupAlert = `<div style="background:#FF0000;color:#fff;font-weight:900;text-align:center;padding:4px;margin-bottom:6px;border-radius:4px;font-size:10px;letter-spacing:1px;">⚠️ FTL LAKE BREACH</div>`;
   }
 
-  const radiusM = 60 + (calc.floors * 4);
+  // Generate a rectangular boundary (Polygon) scaled dynamically by parcel acres
+  const latDelta = 0.0004 * Math.sqrt(parcel.acres);
+  const lngDelta = 0.0004 * Math.sqrt(parcel.acres);
+  const bounds = [
+      [parcel.lat + latDelta, parcel.lng - lngDelta],
+      [parcel.lat + latDelta, parcel.lng + lngDelta],
+      [parcel.lat - latDelta, parcel.lng + lngDelta],
+      [parcel.lat - latDelta, parcel.lng - lngDelta]
+  ];
 
-  const circle = L.circle([parcel.lat, parcel.lng], {
-    color, fillColor: color, fillOpacity: 0.15, weight: 2, radius: radiusM
+  const polygon = L.polygon(bounds, {
+      color: color, fillColor: color, fillOpacity: 0.15, weight: 2
   }).addTo(markerGroup);
 
   const divIcon = L.divIcon({
@@ -909,8 +927,8 @@ function addMapMarker(sy, parcel, calc) {
     <div class="mp-row"><span class="mp-k">Elevation</span><span class="mp-v">${parcel.elev}m</span></div>
   </div>`;
 
-  circle.bindPopup(popupHtml);
-  marker.on('click', () => { selectRow(sy); circle.openPopup(); });
+  polygon.bindPopup(popupHtml);
+  marker.on('click', () => { selectRow(sy); polygon.openPopup(); });
 }
 
 /* ──────────────────────────────────────────────────────────
